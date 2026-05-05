@@ -1,8 +1,9 @@
 SDK_PATH := $(shell xcrun --show-sdk-path)
 SWIFTC := swiftc
-TARGET := arm64-apple-macosx14.0
 BUILD_DIR := .build
 EXEC := $(BUILD_DIR)/CodexPetNest
+APP_NAME := CodexPet Nest
+APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 
 SOURCES := $(shell find Sources -name '*.swift')
 
@@ -30,10 +31,19 @@ release: $(SOURCES)
 		-o $(EXEC) \
 		$(SOURCES)
 
-run: $(EXEC)
-	$(EXEC)
+app: release
+	@rm -rf "$(APP_BUNDLE)"
+	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Resources"
+	@cp $(EXEC) "$(APP_BUNDLE)/Contents/MacOS/CodexPetNest"
+	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
+	@chmod +x "$(APP_BUNDLE)/Contents/MacOS/CodexPetNest"
+	@echo "App bundle created: $(APP_BUNDLE)"
+
+run: app
+	open "$(APP_BUNDLE)"
 
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all debug release run clean
+.PHONY: all debug release app run clean

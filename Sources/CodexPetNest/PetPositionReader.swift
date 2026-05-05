@@ -11,9 +11,10 @@ struct PetBounds: Equatable {
     }
 }
 
-struct PetState {
-    let isOpen: Bool
-    let petBounds: PetBounds?
+enum PetReadResult {
+    case unavailable
+    case closed
+    case open(bounds: PetBounds)
 }
 
 private func cgFloat(from dict: [String: Any], key: String) -> CGFloat? {
@@ -32,11 +33,11 @@ final class PetPositionReader {
             .appendingPathComponent(".codex-global-state.json")
     }
 
-    func read() -> PetState {
+    func read() -> PetReadResult {
         guard let data = try? Data(contentsOf: stateURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
-            return PetState(isOpen: false, petBounds: nil)
+            return .unavailable
         }
 
         let isOpen = json["electron-avatar-overlay-open"] as? Bool ?? false
@@ -51,7 +52,7 @@ final class PetPositionReader {
               let mw = cgFloat(from: mascot, key: "width"),
               let mh = cgFloat(from: mascot, key: "height")
         else {
-            return PetState(isOpen: false, petBounds: nil)
+            return .closed
         }
 
         let petBounds = PetBounds(
@@ -61,7 +62,7 @@ final class PetPositionReader {
             height: mh
         )
 
-        return PetState(isOpen: true, petBounds: petBounds)
+        return .open(bounds: petBounds)
     }
 }
 

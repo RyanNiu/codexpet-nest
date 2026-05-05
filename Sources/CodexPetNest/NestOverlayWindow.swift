@@ -4,13 +4,26 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     private let renderer: NestRenderer
     private let reader = PetPositionReader()
     private var pollTimer: Timer?
-    private var lastPetOpen = false
+    private var lastVisible = false
+    private var modeLabel: NSTextField?
 
     private static let nestSize = NSSize(width: 220, height: 72)
     private let gap: CGFloat = 8
 
     init() {
-        renderer = NestRenderer(frame: NSRect(origin: .zero, size: Self.nestSize))
+        let contentView = NSView(frame: NSRect(origin: .zero, size: Self.nestSize))
+        renderer = NestRenderer(frame: contentView.bounds)
+        renderer.autoresizingMask = [.width, .height]
+        contentView.addSubview(renderer)
+
+        let label = NSTextField(labelWithString: "Nest (standalone)")
+        label.font = .systemFont(ofSize: 9)
+        label.textColor = .white.withAlphaComponent(0.35)
+        label.alignment = .center
+        label.frame = NSRect(x: 0, y: 2, width: Self.nestSize.width, height: 10)
+        label.isHidden = true
+        contentView.addSubview(label)
+        modeLabel = label
 
         super.init(
             contentRect: NSRect(origin: .zero, size: Self.nestSize),
@@ -28,7 +41,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         ignoresMouseEvents = false
         isMovableByWindowBackground = false
 
-        contentView = renderer
+        self.contentView = contentView
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             self?.poll()
@@ -78,37 +91,61 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     }
 
     private func poll() {
-        let state = reader.read()
+        let result = reader.read()
 
-        if !state.isOpen {
-            if lastPetOpen {
+        switch result {
+        case .unavailable:
+            showStandalone()
+
+        case .closed:
+            if lastVisible {
                 orderOut(nil)
             }
-            lastPetOpen = false
-            return
-        }
+            lastVisible = false
 
-        guard let petBounds = state.petBounds,
-              let screen = screenForTopLeftRect(
-                NSRect(x: petBounds.x, y: petBounds.y, width: petBounds.width, height: petBounds.height)
-              )
-        else {
-            lastPetOpen = state.isOpen
-            return
+        case .open(let petBounds):
+            showFollowing(petBounds: petBounds)
         }
+    }
+
+    private func showStandalone() {
+        guard let screen = NSScreen.main else { return }
+        let sf = screen.visibleFrame
+        let size = Self.nestSize
+        let margin: CGFloat = 32
+        let frame = NSRect(x: sf.maxX - size.width - margin,
+                           y: sf.minY + margin,
+                           width: size.width,
+                           height: size.height)
+
+        setFrame(frame, display: false)
+        modeLabel?.isHidden = false
+
+        if !isVisible || !lastVisible {
+            orderFront(nil)
+        }
+        lastVisible = true
+    }
+
+    private func showFollowing(petBounds: PetBounds) {
+        modeLabel?.isHidden = true
 
         let petTl = NSRect(x: petBounds.x, y: petBounds.y,
                            width: petBounds.width, height: petBounds.height)
-        let petAk = appKitRectFromTopLeft(petTl, screen: screen)
 
+        guard let screen = screenForTopLeftRect(petTl) else {
+            lastVisible = true
+            return
+        }
+
+        let petAk = appKitRectFromTopLeft(petTl, screen: screen)
         let nestFrame = computeNestFrame(petFrame: petAk, screen: screen)
         setFrame(nestFrame, display: true)
 
-        if !isVisible || !lastPetOpen {
+        if !isVisible || !lastVisible {
             orderFront(nil)
         }
-
-        lastPetOpen = true
+        lastVisible = true
     }
 
     private func computeNestFrame(petFrame: NSRect, screen: NSScreen) -> NSRect {
