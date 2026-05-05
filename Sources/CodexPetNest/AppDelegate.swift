@@ -61,7 +61,7 @@ final class SettingsWindowController: NSWindowController {
     private init() {
         let vc = SettingsViewController()
         let window = NSWindow(contentViewController: vc)
-        window.title = NSLocalizedString("settings.title", comment: "")
+        window.title = "CodexPet Nest Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.setContentSize(NSSize(width: 360, height: 320))
         window.center()

@@ -4,3 +4,5 @@ DerivedData/
 *.xcworkspace
 xcuserdata/
 .DS_Store
+app-session-*.js
+main-*.js

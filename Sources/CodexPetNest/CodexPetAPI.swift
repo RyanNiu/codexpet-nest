@@ -11,6 +11,196 @@ struct DesktopVersionResponse: Codable, Equatable {
     let minimumSupportedVersion: String
 }
 
+// MARK: - API DTOs (Data Transfer Objects for codexpet.xyz)
+
+struct APIPet: Codable {
+    let slug: String
+    let display_name: String?
+    let author_name: String?
+    let description: String?
+    let version: String?
+    let tags_json: String?
+    let download_count: Int?
+    let published_at: String?
+    let spritesheetUrl: String?
+    let downloadUrl: String?
+    let detailUrl: String?
+    let sha256: String?
+    let license: String?
+    let updated_at: String?
+
+    func toPetItem(baseURL: String) -> PetItem {
+        PetItem(
+            id: slug,
+            name: display_name ?? slug,
+            version: version ?? "1.0.0",
+            author: author_name ?? "Unknown",
+            description: description ?? "",
+            previewUrl: normalizeURL(spritesheetUrl, baseURL: baseURL),
+            tags: parseTags(tags_json),
+            detailUrl: normalizeURL(detailUrl, baseURL: baseURL)
+        )
+    }
+
+    func toPetDetail(baseURL: String) -> PetDetail {
+        PetDetail(
+            id: slug,
+            name: display_name ?? slug,
+            version: version ?? "1.0.0",
+            author: author_name ?? "Unknown",
+            description: description ?? "",
+            previewUrl: normalizeURL(spritesheetUrl, baseURL: baseURL),
+            tags: parseTags(tags_json),
+            license: license ?? "MIT",
+            downloads: download_count ?? 0,
+            updatedAt: updated_at ?? published_at ?? ""
+        )
+    }
+    
+    func toDownloadMeta(baseURL: String) -> PetDownloadMeta {
+        PetDownloadMeta(
+            id: slug,
+            version: version ?? "1.0.0",
+            url: normalizeURL(downloadUrl, baseURL: baseURL),
+            sha256: sha256,
+            size: nil,
+            contentType: "application/zip"
+        )
+    }
+}
+
+struct PetsAPIResponse: Codable {
+    let pets: [APIPet]
+    let pagination: APIPagination
+}
+
+struct PetAPIWrapper: Codable {
+    let pet: APIPet
+}
+
+struct APINest: Codable {
+    let slug: String
+    let display_name: String?
+    let author_name: String?
+    let description: String?
+    let version: String?
+    let tags_json: String?
+    let download_count: Int?
+    let published_at: String?
+    let previewUrl: String?
+    let downloadUrl: String?
+    let detailUrl: String?
+    let sha256: String?
+    let license: String?
+    let updated_at: String?
+    let layout: String?
+    let widgets_json: String?
+
+    func toNestItem(baseURL: String) -> NestItem {
+        NestItem(
+            id: slug,
+            name: display_name ?? slug,
+            version: version ?? "1.0.0",
+            author: author_name ?? "Unknown",
+            description: description ?? "",
+            previewUrl: normalizeURL(previewUrl, baseURL: baseURL),
+            tags: parseTags(tags_json),
+            detailUrl: normalizeURL(detailUrl, baseURL: baseURL)
+        )
+    }
+
+    func toNestDetail(baseURL: String) -> NestDetail {
+        NestDetail(
+            id: slug,
+            name: display_name ?? slug,
+            version: version ?? "1.0.0",
+            author: author_name ?? "Unknown",
+            description: description ?? "",
+            layout: layout ?? "default",
+            widgets: parseTags(widgets_json), // Reuse tag parser for widgets array
+            previewUrl: normalizeURL(previewUrl, baseURL: baseURL),
+            tags: parseTags(tags_json),
+            license: license ?? "MIT",
+            downloads: download_count ?? 0,
+            updatedAt: updated_at ?? published_at ?? ""
+        )
+    }
+
+    func toDownloadMeta(baseURL: String) -> NestDownloadMeta {
+        NestDownloadMeta(
+            id: slug,
+            version: version ?? "1.0.0",
+            url: normalizeURL(downloadUrl, baseURL: baseURL),
+            sha256: sha256,
+            size: nil,
+            contentType: "application/zip"
+        )
+    }
+}
+
+struct NestsAPIResponse: Codable {
+    let nests: [APINest]
+    let pagination: APIPagination
+}
+
+struct NestAPIWrapper: Codable {
+    let nest: APINest
+}
+
+struct APIPagination: Codable {
+    let currentPage: Int
+    let limit: Int
+    let totalItems: Int
+}
+
+struct PetDownloadMetaDTO: Codable {
+    let id: String?
+    let slug: String?
+    let version: String?
+    let url: String?
+    let downloadUrl: String?
+    let sha256: String?
+    let size: Int?
+    let contentType: String?
+
+    func toPetDownloadMeta(baseURL: String) -> PetDownloadMeta {
+        PetDownloadMeta(
+            id: slug ?? id ?? "unknown",
+            version: version ?? "1.0.0",
+            url: normalizeURL(downloadUrl ?? url, baseURL: baseURL),
+            sha256: sha256,
+            size: size,
+            contentType: contentType ?? "application/zip"
+        )
+    }
+
+    func toNestDownloadMeta(baseURL: String) -> NestDownloadMeta {
+        NestDownloadMeta(
+            id: slug ?? id ?? "unknown",
+            version: version ?? "1.0.0",
+            url: normalizeURL(downloadUrl ?? url, baseURL: baseURL),
+            sha256: sha256,
+            size: size,
+            contentType: contentType ?? "application/zip"
+        )
+    }
+}
+
+private func parseTags(_ json: String?) -> [String] {
+    guard let json = json, !json.isEmpty else { return [] }
+    guard let data = json.data(using: .utf8) else { return [] }
+    return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+}
+
+private func normalizeURL(_ path: String?, baseURL: String) -> String {
+    guard let path = path, !path.isEmpty else { return "" }
+    if path.hasPrefix("http") { return path }
+    let separator = path.hasPrefix("/") ? "" : "/"
+    return "\(baseURL)\(separator)\(path)"
+}
+
+// MARK: - UI Models
+
 struct PetItem: Codable, Equatable, Identifiable {
     let id: String
     let name: String
@@ -250,15 +440,25 @@ final class CodexPetAPI {
         if let s = search, !s.isEmpty { query["search"] = s }
         if let t = tag, !t.isEmpty { query["tag"] = t }
         if let s = sort, !s.isEmpty { query["sort"] = s }
-        return try await get("/api/pets", query: query)
+        
+        let response: PetsAPIResponse = try await get("/api/pets", query: query)
+        let items = response.pets.map { $0.toPetItem(baseURL: baseURL) }
+        return PetListResponse(
+            items: items,
+            page: response.pagination.currentPage,
+            pageSize: response.pagination.limit,
+            total: response.pagination.totalItems
+        )
     }
 
     func getPet(id: String) async throws -> PetDetail {
-        try await get("/api/pets/\(id)")
+        let wrapper: PetAPIWrapper = try await get("/api/pets/\(id)")
+        return wrapper.pet.toPetDetail(baseURL: baseURL)
     }
 
     func getPetDownload(id: String) async throws -> PetDownloadMeta {
-        try await get("/api/pets/\(id)/download")
+        let dto: PetDownloadMetaDTO = try await get("/api/pets/\(id)/download")
+        return dto.toPetDownloadMeta(baseURL: baseURL)
     }
 
     // MARK: - Nests
@@ -268,15 +468,25 @@ final class CodexPetAPI {
         if let s = search, !s.isEmpty { query["search"] = s }
         if let t = tag, !t.isEmpty { query["tag"] = t }
         if let s = sort, !s.isEmpty { query["sort"] = s }
-        return try await get("/api/nests", query: query)
+        
+        let response: NestsAPIResponse = try await get("/api/nests", query: query)
+        let items = response.nests.map { $0.toNestItem(baseURL: baseURL) }
+        return NestListResponse(
+            items: items,
+            page: response.pagination.currentPage,
+            pageSize: response.pagination.limit,
+            total: response.pagination.totalItems
+        )
     }
 
     func getNest(id: String) async throws -> NestDetail {
-        try await get("/api/nests/\(id)")
+        let wrapper: NestAPIWrapper = try await get("/api/nests/\(id)")
+        return wrapper.nest.toNestDetail(baseURL: baseURL)
     }
 
     func getNestDownload(id: String) async throws -> NestDownloadMeta {
-        try await get("/api/nests/\(id)/download")
+        let dto: PetDownloadMetaDTO = try await get("/api/nests/\(id)/download")
+        return dto.toNestDownloadMeta(baseURL: baseURL)
     }
 
     // MARK: - Auth

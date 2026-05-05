@@ -66,39 +66,55 @@ final class PetPositionReader {
     }
 }
 
-func screenForTopLeftRect(_ tlRect: NSRect) -> NSScreen? {
-    // Codex top-left (0,0) is top-left of primary screen.
-    // AppKit (0,0) is bottom-left of primary screen.
-    let primaryScreen = NSScreen.screens[0]
-    let primaryHeight = primaryScreen.frame.height
-    
-    // Convert tlRect center to AppKit global coordinates
-    let centerTl = NSPoint(x: tlRect.midX, y: tlRect.midY)
-    let centerAk = NSPoint(x: centerTl.x, y: primaryHeight - centerTl.y)
-    
-    for screen in NSScreen.screens {
-        if screen.frame.contains(centerAk) {
-            return screen
-        }
+func primaryScreen() -> NSScreen? {
+    NSScreen.screens.first {
+        abs($0.frame.minX) < 0.5 && abs($0.frame.minY) < 0.5
     }
-    
-    var best: NSScreen?
-    var bestDist: CGFloat = .infinity
-    for screen in NSScreen.screens {
-        let sf = screen.frame
-        let dx = max(0, max(sf.minX - centerAk.x, centerAk.x - sf.maxX))
-        let dy = max(0, max(sf.minY - centerAk.y, centerAk.y - sf.maxY))
-        let dist = dx * dx + dy * dy
-        if dist < bestDist {
-            bestDist = dist
-            best = screen
-        }
-    }
-    return best
 }
 
-func appKitRectFromTopLeft(_ tlRect: NSRect, screen: NSScreen) -> NSRect {
-    let sf = screen.frame
-    let y = sf.maxY - tlRect.maxY
-    return NSRect(x: tlRect.origin.x, y: y, width: tlRect.width, height: tlRect.height)
+func topLeftFrame(for screen: NSScreen) -> NSRect {
+    let primary = primaryScreen() ?? NSScreen.screens.first!
+    let primaryMaxY = primary.frame.maxY
+    return NSRect(
+        x: screen.frame.minX,
+        y: primaryMaxY - screen.frame.maxY,
+        width: screen.frame.width,
+        height: screen.frame.height
+    )
+}
+
+func screenForTopLeftRect(_ rect: NSRect) -> NSScreen? {
+    let center = NSPoint(x: rect.midX, y: rect.midY)
+
+    if let screen = NSScreen.screens.first(where: {
+        topLeftFrame(for: $0).contains(center)
+    }) {
+        return screen
+    }
+
+    return NSScreen.screens.min { s1, s2 in
+        distanceSquared(center, to: topLeftFrame(for: s1))
+            < distanceSquared(center, to: topLeftFrame(for: s2))
+    }
+}
+
+func appKitRectFromTopLeft(_ rect: NSRect, screen: NSScreen) -> NSRect {
+    let screenTopLeftFrame = topLeftFrame(for: screen)
+    let localX = rect.minX - screenTopLeftFrame.minX
+    let localY = rect.minY - screenTopLeftFrame.minY
+
+    return NSRect(
+        x: screen.frame.minX + localX,
+        y: screen.frame.maxY - localY - rect.height,
+        width: rect.width,
+        height: rect.height
+    )
+}
+
+func distanceSquared(_ point: NSPoint, to rect: NSRect) -> CGFloat {
+    let clampedX = min(max(point.x, rect.minX), rect.maxX)
+    let clampedY = min(max(point.y, rect.minY), rect.maxY)
+    let dx = point.x - clampedX
+    let dy = point.y - clampedY
+    return dx * dx + dy * dy
 }

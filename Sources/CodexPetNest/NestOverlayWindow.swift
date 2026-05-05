@@ -62,29 +62,34 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu(title: "CodexPet Nest")
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.open", comment: ""),
+        menu.addItem(NSMenuItem(title: "Open Nest",
                                  action: #selector(MenuActionTarget.openNest), keyEquivalent: ""))
         menu.addItem(.separator())
 
-        let pomodoroItem = NSMenuItem(title: NSLocalizedString("nest.menu.pomodoro", comment: ""),
-                                       action: #selector(MenuActionTarget.togglePomodoro), keyEquivalent: "")
-        menu.addItem(pomodoroItem)
+        menu.addItem(NSMenuItem(title: "Toggle Pomodoro",
+                                       action: #selector(MenuActionTarget.togglePomodoro), keyEquivalent: ""))
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.countdown", comment: ""),
+        menu.addItem(NSMenuItem(title: "Set Countdown",
                                  action: #selector(MenuActionTarget.setCountdown), keyEquivalent: ""))
+        
+        let usageEnabled = SettingsStore.shared.widgetEnabled("usage")
+        let usageTitle = usageEnabled ? "Hide Usage Indicator" : "Show Usage Indicator"
+        menu.addItem(NSMenuItem(title: usageTitle,
+                                 action: #selector(MenuActionTarget.toggleUsage), keyEquivalent: ""))
+        
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.browsePets", comment: ""),
+        menu.addItem(NSMenuItem(title: "Browse Pets",
                                  action: #selector(MenuActionTarget.browsePets), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.browseNests", comment: ""),
+        menu.addItem(NSMenuItem(title: "Browse Nests",
                                  action: #selector(MenuActionTarget.browseNests), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.upload", comment: ""),
+        menu.addItem(NSMenuItem(title: "Upload Pet",
                                  action: #selector(MenuActionTarget.uploadPet), keyEquivalent: ""))
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.hide", comment: ""),
+        menu.addItem(NSMenuItem(title: "Hide Nest",
                                  action: #selector(MenuActionTarget.hideNest), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("nest.menu.settings", comment: ""),
+        menu.addItem(NSMenuItem(title: "Settings",
                                  action: #selector(MenuActionTarget.openSettings), keyEquivalent: ""))
 
         menu.items.forEach { $0.target = MenuActionTarget.shared }
@@ -117,24 +122,6 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         }
     }
 
-    private func showStandalone() {
-        guard let screen = NSScreen.main else { return }
-        let sf = screen.visibleFrame
-        let size = Self.nestSize
-        let margin: CGFloat = 32
-        let frame = NSRect(x: sf.maxX - size.width - margin,
-                           y: sf.minY + margin,
-                           width: size.width,
-                           height: size.height)
-
-        setFrame(frame, display: false)
-        modeLabel?.isHidden = false
-
-        if !isVisible || !lastVisible {
-            orderFront(nil)
-        }
-        lastVisible = true
-    }
 
     private func showFollowing(petBounds: PetBounds) {
         modeLabel?.isHidden = true
@@ -147,8 +134,18 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
             return
         }
 
+        let tlFrame = topLeftFrame(for: screen)
         let petAk = appKitRectFromTopLeft(petTl, screen: screen)
         let nestFrame = computeNestFrame(petFrame: petAk, screen: screen)
+        
+        #if DEBUG
+        print("[NestOverlay] raw top-left pet rect: \(petTl)")
+        print("[NestOverlay] selected screen.frame: \(screen.frame)")
+        print("[NestOverlay] selected topLeftFrame: \(tlFrame)")
+        print("[NestOverlay] converted AppKit pet rect: \(petAk)")
+        print("[NestOverlay] final nest frame: \(nestFrame)")
+        #endif
+        
         setFrame(nestFrame, display: true)
 
         if !isVisible || !lastVisible {
@@ -224,48 +221,6 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         }
 
         return clamp(rectFor(pos))
-    }
-}
-
-@objc final class MenuActionTarget: NSObject {
-    static let shared = MenuActionTarget()
-
-    @objc func openNest() {
-        if let window = NSApp.windows.first(where: { $0 is NestOverlayWindow }) {
-            window.orderFront(nil)
-        }
-    }
-
-    @objc func togglePomodoro() {
-        NotificationCenter.default.post(name: .togglePomodoro, object: nil)
-    }
-
-    @objc func setCountdown() {
-        NotificationCenter.default.post(name: .setCountdown, object: nil)
-    }
-
-    @objc func browsePets() {
-        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/pets")!)
-    }
-
-    @objc func browseNests() {
-        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/nests")!)
-    }
-
-    @objc func uploadPet() {
-        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/submit")!)
-    }
-
-    @objc func hideNest() {
-        SettingsStore.shared.settings.showNest = false
-        SettingsStore.shared.save()
-        for window in NSApp.windows where window is NestOverlayWindow {
-            window.orderOut(nil)
-        }
-    }
-
-    @objc func openSettings() {
-        NotificationCenter.default.post(name: .openSettings, object: nil)
     }
 }
 

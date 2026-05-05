@@ -22,11 +22,13 @@ CodexPet Nest 是 [codexpet.xyz](https://codexpet.xyz) 的 macOS 桌面伴侣应
 - **时钟小组件** — 当前时间和日期
 - **倒计时小组件** — 设置目标日期/时间
 - **番茄钟小组件** — 专注/休息计时器
+- **本地宠物管理** — 扫描、安装本地 ZIP、卸载宠物，只读识别 Codex 当前使用的宠物
+- **本地小窝外观管理** — 安装、预览、切换本地小窝外观包（nest skin），支持静态贴图自定义
 - 菜单栏应用，支持快捷操作
 - 右键菜单：打开/隐藏 nest、番茄钟、倒计时、浏览市场、上传、设置
 - 本地设置持久化（JSON）
 - OAuth 设备码登录（Keychain 安全存储）
-- Pet / Nest 包浏览、下载、SHA256 校验安装
+- **在线宠物市场** — 在应用内浏览并下载 [codexpet.xyz](https://codexpet.xyz) 上的宠物包，支持 SHA256 校验安全安装
 - 多显示器支持
 
 ## 安装
@@ -191,7 +193,9 @@ codexpet-nest/
 │       └── Widgets/
 │           ├── ClockWidget.swift     # 时钟
 │           ├── CountdownWidget.swift # 倒计时
-│           └── PomodoroWidget.swift  # 番茄钟
+│           ├── PomodoroWidget.swift  # 番茄钟
+│           └── UsageIndicatorWidget.swift # 使用量指示器
+├── UsageLimitReader.swift            # 读取 Codex 使用量日志
 └── docs/
     ├── architecture.md         # 架构说明
     └── permissions.md          # 权限说明
@@ -207,7 +211,8 @@ codexpet-nest/
 │  NestOverlayWindow (NSPanel)    │  ← 透明悬浮巢窗
 │    ├─ NestRenderer              │  ← 背景 + widget 容器
 │    ├─ PetPositionReader         │  ← 读取 .codex-global-state.json
-│    └─ Widgets (Clock/Countdown/Pomodoro)
+│    ├─ UsageLimitReader          │  ← 读取 logs_2.sqlite 使用量
+│    └─ Widgets (Clock/Countdown/Pomodoro/Usage)
 │                                 │
 │  ┌─── API Layer ──────────────┐ │
 │  │ CodexPetAPI                │ │  ← codexpet.xyz API 调用

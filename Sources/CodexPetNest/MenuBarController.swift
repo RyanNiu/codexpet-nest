@@ -23,45 +23,63 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         let showHideTitle = SettingsStore.shared.settings.showNest
-            ? NSLocalizedString("menu.hideNest", comment: "")
-            : NSLocalizedString("menu.showNest", comment: "")
+            ? "Hide Nest"
+            : "Show Nest"
         menu.addItem(NSMenuItem(title: showHideTitle,
-                                 action: #selector(MenuActionTarget.shared.toggleShowNest),
+                                 action: #selector(MenuActionTarget.toggleShowNest),
+                                 keyEquivalent: ""))
+        menu.addItem(withTitle: "Manage Local Pets...", action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: "m")
+        menu.addItem(withTitle: "Manage Local Nests...", action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: "")
+        menu.addItem(.separator())
+
+        menu.addItem(NSMenuItem(title: "Pet Marketplace",
+                                 action: #selector(MenuActionTarget.browsePets),
+                                 keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Nest Marketplace",
+                                 action: #selector(MenuActionTarget.browseNests),
+                                 keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Upload Pet Pack",
+                                 action: #selector(MenuActionTarget.uploadPet),
+                                 keyEquivalent: ""))
+        
+        let usageEnabled = SettingsStore.shared.widgetEnabled("usage")
+        let usageTitle = usageEnabled ? "Hide Usage Indicator" : "Show Usage Indicator"
+        menu.addItem(NSMenuItem(title: usageTitle,
+                                 action: #selector(MenuActionTarget.toggleUsage),
                                  keyEquivalent: ""))
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.petMarket", comment: ""),
-                                 action: #selector(MenuActionTarget.shared.browsePets),
-                                 keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.nestMarket", comment: ""),
-                                 action: #selector(MenuActionTarget.shared.browseNests),
-                                 keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.uploadPet", comment: ""),
-                                 action: #selector(MenuActionTarget.shared.uploadPet),
+        menu.addItem(NSMenuItem(title: "Check for Updates...",
+                                 action: #selector(MenuActionTarget.checkForUpdates),
                                  keyEquivalent: ""))
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.checkUpdates", comment: ""),
-                                 action: #selector(MenuActionTarget.shared.checkForUpdates),
-                                 keyEquivalent: ""))
-        menu.addItem(.separator())
-
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.settings", comment: ""),
-                                 action: #selector(MenuActionTarget.shared.openSettings),
+        menu.addItem(NSMenuItem(title: "Settings...",
+                                 action: #selector(MenuActionTarget.openSettings),
                                  keyEquivalent: ","))
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: NSLocalizedString("menu.quit", comment: ""),
+        let quitItem = NSMenuItem(title: "Quit CodexPet Nest",
                                  action: #selector(NSApplication.terminate(_:)),
-                                 keyEquivalent: "q"))
+                                 keyEquivalent: "q")
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
 
-        menu.items.forEach { $0.target = MenuActionTarget.shared }
+        menu.items.forEach { 
+            if $0.action != #selector(NSApplication.terminate(_:)) {
+                $0.target = MenuActionTarget.shared 
+            }
+        }
         statusItem.menu = menu
     }
 
     func menuWillOpen(_ menu: NSMenu) {
         rebuildMenu()
     }
+}
+
+@objc final class MenuActionTarget: NSObject {
+    static let shared = MenuActionTarget()
 }
 
 extension MenuActionTarget {
@@ -103,5 +121,62 @@ extension MenuActionTarget {
         alert.informativeText = message
         alert.alertStyle = .informational
         alert.runModal()
+    }
+
+    @objc func manageLocalPets() {
+        LocalPetManagerWindowController.shared.show()
+    }
+
+    @objc func manageLocalNests() {
+        LocalNestManagerWindowController.shared.show()
+    }
+
+    @objc func browsePets() {
+        OnlinePetMarketplaceWindowController.shared.show()
+    }
+
+    @objc func browseNests() {
+        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/nests")!)
+    }
+
+    @objc func uploadPet() {
+        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/submit")!)
+    }
+
+    @objc func toggleUsage() {
+        let id = "usage"
+        if SettingsStore.shared.settings.enabledWidgets.contains(id) {
+            SettingsStore.shared.settings.enabledWidgets.removeAll { $0 == id }
+        } else {
+            SettingsStore.shared.settings.enabledWidgets.append(id)
+        }
+        SettingsStore.shared.save()
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
+    }
+
+    @objc func openSettings() {
+        NotificationCenter.default.post(name: .openSettings, object: nil)
+    }
+
+    @objc func openNest() {
+        if let window = NSApp.windows.first(where: { $0 is NestOverlayWindow }) {
+            window.orderFront(nil)
+        }
+    }
+
+    @objc func togglePomodoro() {
+        NotificationCenter.default.post(name: .togglePomodoro, object: nil)
+    }
+
+    @objc func setCountdown() {
+        NotificationCenter.default.post(name: .setCountdown, object: nil)
+    }
+
+    @objc func hideNest() {
+        SettingsStore.shared.settings.showNest = false
+        SettingsStore.shared.save()
+        for window in NSApp.windows where window is NestOverlayWindow {
+            window.orderOut(nil)
+        }
     }
 }

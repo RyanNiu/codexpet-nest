@@ -10,9 +10,11 @@ struct Settings: Codable, Equatable {
     var launchAtLogin: Bool = false
     var nestPosition: String = "bottom"
     var theme: String = "default"
-    var enabledWidgets: [String] = ["clock", "countdown", "pomodoro"]
+    var enabledWidgets: [String] = ["clock", "countdown", "pomodoro", "usage"]
     var countdownTarget: String?
     var pomodoro: PomodoroSettings = PomodoroSettings()
+    var managedPetIds: [String] = []
+    var activeNestId: String = "default"
 }
 
 final class SettingsStore {
