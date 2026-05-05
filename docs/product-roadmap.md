@@ -337,10 +337,11 @@ Acceptance criteria:
 - App can switch active nest. (Done)
 - Invalid nest packages are rejected with clear errors. (Done)
 
-### Sprint 5: Online Nest Market And Upload
+### Sprint 5: Online Nest Market And Upload (In Progress)
 
 Acceptance criteria:
 
+- Define official nest package specification. (Done: docs/specs/nest-package.md)
 - App lists nests from `codexpet.xyz`.
 - App installs and switches online nest packages.
 - Website supports nest upload and validation.

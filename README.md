@@ -198,7 +198,9 @@ codexpet-nest/
 ├── UsageLimitReader.swift            # 读取 Codex 使用量日志
 └── docs/
     ├── architecture.md         # 架构说明
-    └── permissions.md          # 权限说明
+    ├── permissions.md          # 权限说明
+    └── specs/
+        └── nest-package.md     # Nest 小窝包标准规范
 ```
 
 ## 架构概览
