@@ -201,7 +201,7 @@ final class NestRenderer: NSView {
 
     var currentCanvasSize: NSSize {
         if isOrbitNest {
-            return NSSize(width: 260, height: 260)
+            return NSSize(width: 160, height: 160)
         }
         if let nest = activeNest {
             return NSSize(width: nest.layout.canvas.width, height: nest.layout.canvas.height)
@@ -216,15 +216,14 @@ final class NestRenderer: NSView {
             let dy = point.y - center.y
             let dist = sqrt(dx*dx + dy*dy)
             
-            // Outer ring radius is 110, tick marks extend to ~126.
-            // Inner ring is 94. 
-            // We want to allow clicks through if dist < 80 (central area where pet is).
-            if dist < 80 {
+            // Inner ring is 52. Outer ring is 64.
+            // We want to allow clicks through if dist < 40 (central area where pet is).
+            if dist < 40 {
                 return nil // Click through to pet!
             }
             
-            // Also allow click through if dist > 140 (outside the nest area)
-            if dist > 140 {
+            // Also allow click through if dist > 85 (outside the nest area)
+            if dist > 85 {
                 return nil
             }
             

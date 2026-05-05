@@ -61,10 +61,10 @@ final class UsageOrbitRenderer: NSView {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        // Adjust radii for 260x260 canvas
-        let outerRadius: CGFloat = 110
-        let innerRadius: CGFloat = 94
-        let lineWidth: CGFloat = 8
+        // Scaled down for tighter fit around pet (pet is ~80x80)
+        let outerRadius: CGFloat = 64
+        let innerRadius: CGFloat = 52
+        let lineWidth: CGFloat = 6
         
         // Background tracks
         drawRing(context: context, center: center, radius: outerRadius, percent: 100, color: NSColor.white.withAlphaComponent(0.08), lineWidth: lineWidth)
@@ -121,12 +121,13 @@ final class UsageOrbitRenderer: NSView {
     private func drawTicks(context: CGContext, center: CGPoint, radius: CGFloat, count: Int) {
         context.saveGState()
         context.setStrokeColor(NSColor.white.withAlphaComponent(0.15).cgColor)
-        context.setLineWidth(1.5)
+        context.setLineWidth(1.2)
         
         for i in 0..<count {
             let angle = CGFloat(i) * (2.0 * .pi / CGFloat(count)) - .pi/2
-            let p1 = CGPoint(x: center.x + (radius + 8) * cos(angle), y: center.y + (radius + 8) * sin(angle))
-            let p2 = CGPoint(x: center.x + (radius + 16) * cos(angle), y: center.y + (radius + 16) * sin(angle))
+            // Smaller ticks for smaller rings
+            let p1 = CGPoint(x: center.x + (radius + 5) * cos(angle), y: center.y + (radius + 5) * sin(angle))
+            let p2 = CGPoint(x: center.x + (radius + 10) * cos(angle), y: center.y + (radius + 10) * sin(angle))
             context.move(to: p1)
             context.addLine(to: p2)
         }
@@ -141,16 +142,15 @@ final class UsageOrbitRenderer: NSView {
     }
     
     private func drawReadouts(info: UsageLimitInfo) {
-        let primaryText = "Primary: \(info.primary?.remainingPercent ?? 0)%"
-        let secondaryText = "Secondary: \(info.secondary?.remainingPercent ?? 0)%"
-        let sourceText = "Source: \(info.source.rawValue)"
+        let primaryText = "P: \(info.primary?.remainingPercent ?? 0)%"
+        let secondaryText = "S: \(info.secondary?.remainingPercent ?? 0)%"
         
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .bold),
             .foregroundColor: NSColor.white,
             .shadow: {
                 let s = NSShadow()
-                s.shadowBlurRadius = 3
+                s.shadowBlurRadius = 2
                 s.shadowColor = NSColor.black
                 return s
             }()
@@ -158,15 +158,17 @@ final class UsageOrbitRenderer: NSView {
         
         let pSize = primaryText.size(withAttributes: attributes)
         let sSize = secondaryText.size(withAttributes: attributes)
-        let srcSize = sourceText.size(withAttributes: attributes)
         
-        primaryText.draw(at: CGPoint(x: bounds.midX - pSize.width / 2, y: bounds.midY + 12), withAttributes: attributes)
+        // Compact readouts
+        primaryText.draw(at: CGPoint(x: bounds.midX - pSize.width / 2, y: bounds.midY + 8), withAttributes: attributes)
         secondaryText.draw(at: CGPoint(x: bounds.midX - sSize.width / 2, y: bounds.midY - 4), withAttributes: attributes)
         
+        let sourceText = info.source.rawValue
         let srcAttr: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 9, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.6)
+            .font: NSFont.systemFont(ofSize: 7, weight: .medium),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.5)
         ]
-        sourceText.draw(at: CGPoint(x: bounds.midX - srcSize.width / 2, y: bounds.midY - 20), withAttributes: srcAttr)
+        let srcSize = sourceText.size(withAttributes: srcAttr)
+        sourceText.draw(at: CGPoint(x: bounds.midX - srcSize.width / 2, y: bounds.midY - 14), withAttributes: srcAttr)
     }
 }
