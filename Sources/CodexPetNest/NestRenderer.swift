@@ -208,6 +208,20 @@ final class NestRenderer: NSView {
         }
         return NSSize(width: 220, height: 72)
     }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        if isOrbitNest {
+            // In orbit mode, only capture if a subview (like the rings) is hit.
+            // If subview returns nil (the center), we return nil to allow clicking the pet.
+            for subview in subviews.reversed() {
+                if let hit = subview.hitTest(point) {
+                    return hit
+                }
+            }
+            return nil
+        }
+        return super.hitTest(point)
+    }
 }
 
 extension Notification.Name {

@@ -13,14 +13,6 @@ final class UsageOrbitRenderer: NSView {
         super.init(frame: frame)
         wantsLayer = true
         
-        let trackingArea = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(trackingArea)
-        
         timer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.refreshData()
         }
@@ -34,14 +26,6 @@ final class UsageOrbitRenderer: NSView {
         needsDisplay = true
     }
     
-    override func mouseEntered(with event: NSEvent) {
-        isHovering = true
-    }
-    
-    override func mouseExited(with event: NSEvent) {
-        isHovering = false
-    }
-    
     override func hitTest(_ point: NSPoint) -> NSView? {
         let center = CGPoint(x: bounds.midX, y: bounds.midY)
         let dist = sqrt(pow(point.x - center.x, 2) + pow(point.y - center.y, 2))
@@ -53,18 +37,6 @@ final class UsageOrbitRenderer: NSView {
         
         // Rings and outer area should capture right-click
         return super.hitTest(point)
-    }
-    
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach { removeTrackingArea($0) }
-        let trackingArea = NSTrackingArea(
-            rect: bounds,
-            options: [.mouseEnteredAndExited, .activeInActiveApp, .inVisibleRect],
-            owner: self,
-            userInfo: nil
-        )
-        addTrackingArea(trackingArea)
     }
     
     override func draw(_ dirtyRect: NSRect) {
@@ -89,10 +61,6 @@ final class UsageOrbitRenderer: NSView {
             if let primary = info.primary {
                 let color = colorForPercent(primary.remainingPercent)
                 drawRing(context: context, center: center, radius: outerRadius, percent: CGFloat(primary.remainingPercent), color: color, lineWidth: lineWidth, glow: true)
-                
-                if primary.remainingPercent < 12 {
-                    drawBadge(context: context, center: center, radius: outerRadius, percent: primary.remainingPercent)
-                }
             } else {
                 drawRing(context: context, center: center, radius: outerRadius, percent: 100, color: NSColor.gray.withAlphaComponent(0.3), lineWidth: lineWidth)
             }
@@ -100,17 +68,11 @@ final class UsageOrbitRenderer: NSView {
             if let secondary = info.secondary {
                 let color = colorForPercent(secondary.remainingPercent)
                 drawRing(context: context, center: center, radius: innerRadius, percent: CGFloat(secondary.remainingPercent), color: color, lineWidth: lineWidth, glow: true)
-                
-                if secondary.remainingPercent < 12 {
-                    drawBadge(context: context, center: center, radius: innerRadius, percent: secondary.remainingPercent)
-                }
             } else {
                 drawRing(context: context, center: center, radius: innerRadius, percent: 100, color: NSColor.gray.withAlphaComponent(0.3), lineWidth: lineWidth)
             }
             
-            if isHovering {
-                drawReadouts(info: info)
-            }
+            drawReadouts(info: info)
         } else {
             let gray = NSColor.gray.withAlphaComponent(0.3)
             drawRing(context: context, center: center, radius: outerRadius, percent: 100, color: gray, lineWidth: lineWidth)
@@ -162,42 +124,45 @@ final class UsageOrbitRenderer: NSView {
     }
     
     private func drawReadouts(info: UsageLimitInfo) {
-        let pRem = info.primary?.remainingPercent ?? 0
-        let sRem = info.secondary?.remainingPercent ?? 0
+        if let primary = info.primary {
+            if isHovering || primary.remainingPercent < 12 {
+                drawPill(percent: primary.remainingPercent, radius: 64, color: colorForPercent(primary.remainingPercent))
+            }
+        }
+        if let secondary = info.secondary {
+            if isHovering || secondary.remainingPercent < 12 {
+                drawPill(percent: secondary.remainingPercent, radius: 52, color: colorForPercent(secondary.remainingPercent))
+            }
+        }
+    }
+    
+    private func drawPill(percent: Int, radius: CGFloat, color: NSColor) {
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        let angle = CGFloat(percent) * (2.0 * .pi / 100.0) - .pi/2
+        let pillCenter = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
         
-        let pText = "5h: \(pRem)%"
-        let sText = "7d: \(sRem)%"
-        
+        let text = "\(percent)%"
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .bold),
-            .foregroundColor: NSColor.white,
-            .shadow: {
-                let s = NSShadow()
-                s.shadowBlurRadius = 2
-                s.shadowColor = NSColor.black
-                return s
-            }()
+            .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+            .foregroundColor: NSColor.white
         ]
+        let textSize = text.size(withAttributes: attributes)
         
-        let pSize = pText.size(withAttributes: attributes)
-        let sSize = sText.size(withAttributes: attributes)
+        // Pill background
+        let pillWidth = textSize.width + 12
+        let pillHeight = textSize.height + 4
+        let pillRect = CGRect(x: pillCenter.x - pillWidth/2, y: pillCenter.y - pillHeight/2, width: pillWidth, height: pillHeight)
         
-        pText.draw(at: CGPoint(x: bounds.midX - pSize.width / 2, y: bounds.midY + 12), withAttributes: attributes)
-        sText.draw(at: CGPoint(x: bounds.midX - sSize.width / 2, y: bounds.midY + 2), withAttributes: attributes)
+        let path = NSBezierPath(roundedRect: pillRect, xRadius: pillHeight/2, yRadius: pillHeight/2)
+        NSColor.black.withAlphaComponent(0.8).setFill()
+        path.fill()
         
-        // Reset times
-        let smallAttr: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 7, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(0.7)
-        ]
+        // Border
+        color.withAlphaComponent(0.6).setStroke()
+        path.lineWidth = 1.5
+        path.stroke()
         
-        let pReset = "Reset: \(formatTime(info.primary?.resetDate))"
-        let rSize = pReset.size(withAttributes: smallAttr)
-        pReset.draw(at: CGPoint(x: bounds.midX - rSize.width / 2, y: bounds.midY - 8), withAttributes: smallAttr)
-        
-        let sourceText = "Source: \(info.source.rawValue)"
-        let srcSize = sourceText.size(withAttributes: smallAttr)
-        sourceText.draw(at: CGPoint(x: bounds.midX - srcSize.width / 2, y: bounds.midY - 18), withAttributes: smallAttr)
+        text.draw(at: CGPoint(x: pillRect.midX - textSize.width/2, y: pillRect.midY - textSize.height/2), withAttributes: attributes)
     }
     
     private func formatTime(_ date: Date?) -> String {
@@ -205,24 +170,5 @@ final class UsageOrbitRenderer: NSView {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
-    }
-
-    private func drawBadge(context: CGContext, center: CGPoint, radius: CGFloat, percent: Int) {
-        let angle = CGFloat(percent) * (2.0 * .pi / 100.0) - .pi/2
-        let badgeCenter = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
-        
-        context.saveGState()
-        context.setFillColor(NSColor.systemRed.cgColor)
-        context.addEllipse(in: CGRect(x: badgeCenter.x - 7, y: badgeCenter.y - 7, width: 14, height: 14))
-        context.fillPath()
-        
-        let text = "\(percent)%"
-        let attr: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 6, weight: .bold),
-            .foregroundColor: NSColor.white
-        ]
-        let size = text.size(withAttributes: attr)
-        text.draw(at: CGPoint(x: badgeCenter.x - size.width/2, y: badgeCenter.y - size.height/2), withAttributes: attr)
-        context.restoreGState()
     }
 }

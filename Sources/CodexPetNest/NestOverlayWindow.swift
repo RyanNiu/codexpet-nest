@@ -4,6 +4,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     private let renderer: NestRenderer
     private let reader = PetPositionReader()
     private var pollTimer: Timer?
+    private var hoverTimer: Timer?
     private var lastVisible = false
     private var modeLabel: NSTextField?
 
@@ -37,7 +38,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .floating
+        level = .normal
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         ignoresMouseEvents = false
         isMovableByWindowBackground = false
@@ -47,6 +48,30 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             self?.poll()
+        }
+        
+        hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            self?.updateHoverState()
+        }
+    }
+
+    private func updateHoverState() {
+        let activeId = SettingsStore.shared.settings.activeNestId
+        guard activeId == NestRenderer.orbitNestId else { return }
+        
+        let mouseLoc = NSEvent.mouseLocation
+        let windowFrame = self.frame
+        
+        let localX = mouseLoc.x - windowFrame.origin.x
+        let localY = mouseLoc.y - windowFrame.origin.y
+        
+        let center = CGPoint(x: windowFrame.width / 2, y: windowFrame.height / 2)
+        let dist = sqrt(pow(localX - center.x, 2) + pow(localY - center.y, 2))
+        
+        let isHovering = dist >= 40 && dist <= 85
+        
+        if let orbitView = renderer.subviews.first(where: { $0 is UsageOrbitRenderer }) as? UsageOrbitRenderer {
+            orbitView.isHovering = isHovering
         }
     }
 
@@ -92,7 +117,12 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit CodexPet Nest", action: #selector(NSApplication.terminate), keyEquivalent: "q"))
         
-        menu.items.forEach { $0.target = MenuActionTarget.shared }
+        // Only set target for items intended for MenuActionTarget
+        for item in menu.items {
+            if item.action != #selector(NSApplication.terminate) {
+                item.target = MenuActionTarget.shared
+            }
+        }
         return menu
     }
 
@@ -146,17 +176,9 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
         let petAk = appKitRectFromTopLeft(petTl, screen: screen)
         let nestFrame = computeNestFrame(petFrame: petAk, screen: screen)
-        
-        let isOrbit = SettingsStore.shared.settings.activeNestId == NestRenderer.orbitNestId
-        
-        // If orbit mode, stay BEHIND the pet and allow all clicks to pass through
-        if isOrbit {
-            self.level = .normal
-            self.ignoresMouseEvents = false
-        } else {
-            self.level = .floating
-            self.ignoresMouseEvents = false
-        }
+        // Stay behind/at normal level. Hover is handled by global polling.
+        self.level = .normal
+        self.ignoresMouseEvents = false
         
         #if DEBUG
         print("[NestOverlayWindow] petTl: \(petTl), petAk: \(petAk), nestFrame: \(nestFrame), level: \(level.rawValue)")

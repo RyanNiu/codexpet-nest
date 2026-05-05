@@ -79,10 +79,14 @@ final class LocalNestManager {
     }
     
     func applyNest(id: String) {
-        if id == "default" || installedNests.contains(where: { $0.id == id }) {
+        let isBuiltIn = (id == "default" || id == NestRenderer.orbitNestId)
+        if isBuiltIn || installedNests.contains(where: { $0.id == id }) {
             SettingsStore.shared.settings.activeNestId = id
             SettingsStore.shared.save()
+            
             NotificationCenter.default.post(name: .activeNestChanged, object: nil)
+            NotificationCenter.default.post(name: .settingsChanged, object: nil)
+            NotificationCenter.default.post(name: .nestSizeChanged, object: nil)
         }
     }
     

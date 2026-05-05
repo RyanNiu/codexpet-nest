@@ -151,8 +151,8 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
                 useBtn.isEnabled = false
             }
         } else if row == 1 {
-            titleLabel.stringValue = "Capacity Orbit Nest"
-            authorLabel.stringValue = "Built-in / Official"
+            titleLabel.stringValue = "Capacity Orbit"
+            authorLabel.stringValue = "Built-in • Shows live usage rings around your pet"
             iconView.image = NSImage(named: NSImage.networkName)
             useBtn.tag = -2
             menuBtn.tag = -2

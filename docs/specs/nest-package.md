@@ -25,6 +25,9 @@ LICENSE                 # (可选) 许可证
 - `default`: 经典的横条式小窝。
 - `capacity-orbit-nest`: 围绕宠物的动态 Usage 圆环。
 
+> [!IMPORTANT]
+> 在 v0.1 版本中，CodexPet Nest 仅支持上述官方内置的动态渲染器。出于安全性考虑，**严禁**在第三方小窝包中包含任何 JavaScript、WebView 或二进制执行文件。所有第三方小窝目前必须仅包含静态资源及 `nest.json` 布局配置。
+
 ## 3. codexpet-package.json
 
 定义包的基本属性。

@@ -32,7 +32,9 @@ final class SettingsStore {
         settings = Settings()
 
         try? FileManager.default.createDirectory(at: supportDir, withIntermediateDirectories: true)
+        #if DEBUG
         print("[SettingsStore] fileURL: \(fileURL.path)")
+        #endif
         load()
     }
 
@@ -41,9 +43,13 @@ final class SettingsStore {
             let data = try Data(contentsOf: fileURL)
             let decoded = try JSONDecoder().decode(Settings.self, from: data)
             settings = decoded
+            #if DEBUG
             print("[SettingsStore] loaded activeNestId=\(settings.activeNestId)")
+            #endif
         } catch {
+            #if DEBUG
             print("[SettingsStore] load failed: \(error)")
+            #endif
         }
     }
 
@@ -51,9 +57,13 @@ final class SettingsStore {
         do {
             let data = try JSONEncoder().encode(settings)
             try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+            #if DEBUG
             print("[SettingsStore] saved activeNestId=\(settings.activeNestId)")
+            #endif
         } catch {
+            #if DEBUG
             print("[SettingsStore] save failed: \(error)")
+            #endif
         }
     }
 

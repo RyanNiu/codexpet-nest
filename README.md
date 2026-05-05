@@ -268,13 +268,14 @@ an MIT-licensed macOS companion app by petergpt that demonstrates how a
 transparent, always-on-top window can follow the active Codex pet without
 patching Codex.
 
-CodexPet Nest is a separate project focused on### Features
+### Features
 - **Widget Slots**: Support for clock, countdown, pomodoro, and usage indicators.
 - **Capacity Orbit Nest (Official)**: A built-in dynamic nest that wraps around your pet with live usage rings (5h and 7d buckets).
 - **Online Marketplace**: Browse and install community-made nest skins.
 - **Pet Integration**: Follows your Codex pet across multiple monitors.
-ly stated
-in future project materials.
+
+## 关于本项目
+CodexPet Nest 是一个专注于宠物小窝、小组件、皮肤市场以及创作者上传工作流的独立项目。除非未来项目材料中明确说明，否则本项与 codex-pet-limit-rings、petergpt、OpenAI 或 Codex 均无隶属关系。
 
 ## 许可证
 
