@@ -1,0 +1,13 @@
+{
+  "type": "codexpet.nest",
+  "schemaVersion": "1.1.0",
+  "id": "window-desk-nest",
+  "name": "Window Desk Nest",
+  "version": "1.0.0",
+  "author": "CodexPet",
+  "description": "A cozy desk scene with a window that changes from day to night based on system time.",
+  "preview": "preview.png",
+  "layout": "nest.json",
+  "license": "MIT",
+  "tags": ["official", "v1.1", "pixel-art"]
+}

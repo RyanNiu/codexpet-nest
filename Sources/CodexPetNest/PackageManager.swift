@@ -261,47 +261,251 @@ final class PackageManager {
                 throw PackageManagerError.invalidManifest("Failed to parse nest.json: \(error.localizedDescription)")
             }
             
-            // Canvas validation
-            guard layout.canvas.width > 0 && layout.canvas.height > 0 && 
-                  layout.canvas.width.isFinite && layout.canvas.height.isFinite else {
-                throw PackageManagerError.invalidManifest("Canvas width/height must be positive finite numbers")
+            try validateNestLayout(layout, packageRoot: packageRoot)
+        }
+    }
+
+    private func validateNestLayout(_ layout: NestLayout, packageRoot: URL) throws {
+        // 1. schemaVersion
+        guard layout.schemaVersion == "1.0.0" || layout.schemaVersion == "1.1.0" else {
+            throw PackageManagerError.invalidManifest("Unsupported schema version: \(layout.schemaVersion)")
+        }
+
+        // 2. canvas
+        guard layout.canvas.width > 0 && layout.canvas.height > 0 &&
+              layout.canvas.width.isFinite && layout.canvas.height.isFinite else {
+            throw PackageManagerError.invalidManifest("Canvas dimensions must be positive finite numbers")
+        }
+        if layout.canvas.width > 1024 || layout.canvas.height > 1024 {
+            throw PackageManagerError.invalidManifest("Canvas size exceeds limit (1024x1024)")
+        }
+
+        // Layers validation
+        for layer in layout.layers {
+            guard layer.type == "image" else {
+                throw PackageManagerError.unsafeContent("Unsupported layer type: \(layer.type). V1 only supports 'image'.")
             }
-            if layout.canvas.width > 1024 || layout.canvas.height > 1024 {
-                throw PackageManagerError.invalidManifest("Canvas size exceeds limit (1024x1024)")
+            try validateThemeAssetPath(layer.src, packageRoot: packageRoot, label: "Layer asset (\(layer.id))")
+            try validateNestFrame(layer.frame, canvas: layout.canvas, id: layer.id)
+        }
+
+        // Widget slots validation
+        let allowedWidgets = ["usage", "clock", "countdown", "pomodoro"]
+        if let slots = layout.widgetSlots {
+            for (id, rect) in slots {
+                guard allowedWidgets.contains(id) else {
+                    throw PackageManagerError.invalidManifest("Unauthorized widget slot: \(id). Allowed: \(allowedWidgets.joined(separator: ", "))")
+                }
+                try validateNestFrame(rect, canvas: layout.canvas, id: id)
+            }
+        }
+
+        // v1.1 validation
+        if layout.schemaVersion == "1.1.0" {
+            // 3. elements
+            if let elements = layout.elements {
+                var elementIds = Set<String>()
+                for element in elements {
+                    guard !element.id.isEmpty else {
+                        throw PackageManagerError.invalidManifest("Element ID cannot be empty")
+                    }
+                    guard !elementIds.contains(element.id) else {
+                        throw PackageManagerError.invalidManifest("Duplicate element ID: \(element.id)")
+                    }
+                    elementIds.insert(element.id)
+                    try validateNestElement(element, layout: layout, packageRoot: packageRoot)
+                }
+            }
+
+            // 10. metricBands
+            if let metricBands = layout.metricBands {
+                try validateMetricBands(metricBands)
+            }
+        }
+    }
+
+    private func validateNestElement(_ element: NestThemeElement, layout: NestLayout, packageRoot: URL) throws {
+        // frame width/height > 0 且 finite. 允许最多 8px overflow
+        try validateNestFrame(element.frame, canvas: layout.canvas, id: element.id)
+        
+        // metric validation
+        if let metricId = element.metric {
+            guard MetricCatalog.shared.contains(metricId) else {
+                throw PackageManagerError.invalidManifest("Unknown metric: \(metricId) in element \(element.id)")
+            }
+        }
+        
+        switch element {
+        case .staticImage(let e):
+            try validateThemeAssetPath(e.src, packageRoot: packageRoot, label: "Element \(e.id) src")
+            
+        case .variantImage(let e):
+            guard !e.variants.isEmpty else {
+                throw PackageManagerError.invalidManifest("Element \(e.id) variants cannot be empty")
+            }
+            for (key, val) in e.variants {
+                guard !key.isEmpty else {
+                    throw PackageManagerError.invalidManifest("Element \(e.id) variant key cannot be empty")
+                }
+                try validateThemeAssetPath(val, packageRoot: packageRoot, label: "Element \(e.id) variant \(key)")
+            }
+            if let fallback = e.fallback {
+                try validateThemeAssetPath(fallback, packageRoot: packageRoot, label: "Element \(e.id) fallback")
             }
             
-            // Layers validation
-            for layer in layout.layers {
-                guard layer.type == "image" else {
-                    throw PackageManagerError.unsafeContent("Unsupported layer type: \(layer.type). V1 only supports 'image'.")
+        case .metricText(let e):
+            if let style = e.style {
+                if let weight = style.fontWeight {
+                    let allowedWeights = ["regular", "medium", "semibold", "bold"]
+                    guard allowedWeights.contains(weight) else {
+                        throw PackageManagerError.invalidManifest("Invalid fontWeight: \(weight) in element \(e.id)")
+                    }
                 }
-                // Path safety is already checked in validateFileExists, but we double check src specifically
-                if layer.src.contains("..") || layer.src.hasPrefix("/") {
-                    throw PackageManagerError.pathTraversal("Layer src: \(layer.src)")
+                if let align = style.alignment {
+                    let allowedAligns = ["left", "center", "right"]
+                    guard allowedAligns.contains(align) else {
+                        throw PackageManagerError.invalidManifest("Invalid alignment: \(align) in element \(e.id)")
+                    }
                 }
-                try validateFileExists(in: packageRoot, path: layer.src, label: "Layer asset (\(layer.id))")
-                
-                guard layer.frame.width > 0 && layer.frame.height > 0 &&
-                      layer.frame.x.isFinite && layer.frame.y.isFinite &&
-                      layer.frame.width.isFinite && layer.frame.height.isFinite else {
-                    throw PackageManagerError.invalidManifest("Layer frame (\(layer.id)) must have positive finite dimensions")
+                if let color = style.color {
+                    try validateHexColor(color, elementId: e.id)
+                }
+                if let fontSize = style.fontSize {
+                    guard fontSize >= 1 && fontSize <= 128 else {
+                        throw PackageManagerError.invalidManifest("fontSize must be between 1 and 128 in element \(e.id)")
+                    }
                 }
             }
             
-            // Widget slots validation
-            let allowedWidgets = ["usage", "clock", "countdown", "pomodoro"]
-            if let slots = layout.widgetSlots {
-                for (id, rect) in slots {
-                    guard allowedWidgets.contains(id) else {
-                        throw PackageManagerError.invalidManifest("Unauthorized widget slot: \(id). Allowed: \(allowedWidgets.joined(separator: ", "))")
+        case .metricGauge(let e):
+            // metricGauge.renderer validation
+            let allowedRenderers = ["ringStroke", "linearBar", "circleFill"]
+            guard allowedRenderers.contains(e.renderer) else {
+                throw PackageManagerError.invalidManifest("Unknown renderer: \(e.renderer) in element \(e.id)")
+            }
+            
+            if let style = e.style {
+                if let color = style.fillColor { try validateHexColor(color, elementId: e.id) }
+                if let color = style.trackColor { try validateHexColor(color, elementId: e.id) }
+                if let opacity = style.opacity {
+                    guard opacity >= 0 && opacity <= 1 else {
+                        throw PackageManagerError.invalidManifest("opacity must be between 0 and 1 in element \(e.id)")
                     }
-                    guard rect.width > 0 && rect.height > 0 &&
-                          rect.x.isFinite && rect.y.isFinite &&
-                          rect.width.isFinite && rect.height.isFinite else {
-                        throw PackageManagerError.invalidManifest("Widget slot (\(id)) must have positive finite dimensions")
+                }
+                if let lineWidth = style.lineWidth {
+                    guard lineWidth > 0 && lineWidth <= 64 else {
+                        throw PackageManagerError.invalidManifest("lineWidth must be between 0 and 64 in element \(e.id)")
+                    }
+                }
+                if let direction = style.direction {
+                    let allowedDirections = ["leftToRight", "rightToLeft", "bottomToTop", "topToBottom"]
+                    guard allowedDirections.contains(direction) else {
+                        throw PackageManagerError.invalidManifest("Invalid direction: \(direction) in element \(e.id)")
+                    }
+                }
+                if let lineCap = style.lineCap {
+                    let allowedCaps = ["butt", "round", "square"]
+                    guard allowedCaps.contains(lineCap) else {
+                        throw PackageManagerError.invalidManifest("Invalid lineCap: \(lineCap) in element \(e.id)")
+                    }
+                }
+                if let clipShape = style.clipShape {
+                    guard clipShape == "circle" else {
+                        throw PackageManagerError.invalidManifest("Invalid clipShape: \(clipShape) in element \(e.id)")
+                    }
+                }
+                if let cornerRadius = style.cornerRadius {
+                    guard cornerRadius >= 0 else {
+                        throw PackageManagerError.invalidManifest("cornerRadius must be >= 0 in element \(e.id)")
+                    }
+                }
+                if let startAngle = style.startAngle {
+                    guard startAngle.isFinite else {
+                        throw PackageManagerError.invalidManifest("startAngle must be finite in element \(e.id)")
                     }
                 }
             }
+        }
+    }
+
+    private func validateNestFrame(_ rect: NestRect, canvas: NestCanvas, id: String) throws {
+        guard rect.width > 0 && rect.height > 0 &&
+              rect.x.isFinite && rect.y.isFinite &&
+              rect.width.isFinite && rect.height.isFinite else {
+            throw PackageManagerError.invalidManifest("Frame (\(id)) must have positive finite dimensions")
+        }
+        
+        // frame 允许最多 8px overflow
+        let margin: Double = 8.0
+        if rect.x < -margin || rect.y < -margin || 
+           (rect.x + rect.width) > (canvas.width + margin) || 
+           (rect.y + rect.height) > (canvas.height + margin) {
+            throw PackageManagerError.invalidManifest("Frame (\(id)) exceeds allowed canvas overflow (8px)")
+        }
+    }
+
+    private func validateMetricBands(_ metricBands: [String: [MetricBand]]) throws {
+        for (metricId, bands) in metricBands {
+            guard MetricCatalog.shared.isPercentMetric(metricId) else {
+                throw PackageManagerError.invalidManifest("Metric bands can only be applied to percent metrics. Invalid: \(metricId)")
+            }
+            guard !bands.isEmpty else {
+                throw PackageManagerError.invalidManifest("Metric bands for \(metricId) cannot be empty")
+            }
+            
+            var lastMax: Double = -Double.infinity
+            let idRegex = try NSRegularExpression(pattern: "^[a-z0-9_-]+$")
+            
+            for band in bands {
+                guard !band.id.isEmpty else {
+                    throw PackageManagerError.invalidManifest("Band ID cannot be empty in \(metricId)")
+                }
+                guard idRegex.firstMatch(in: band.id, range: NSRange(band.id.startIndex..., in: band.id)) != nil else {
+                    throw PackageManagerError.invalidManifest("Invalid band ID format: \(band.id) in \(metricId). Only lowercase letters, numbers, underscores and hyphens allowed.")
+                }
+                guard band.max.isFinite else {
+                    throw PackageManagerError.invalidManifest("Band max must be finite in \(metricId)")
+                }
+                guard band.max > lastMax else {
+                    throw PackageManagerError.invalidManifest("Band max must be strictly increasing in \(metricId)")
+                }
+                guard band.max <= 100 else {
+                    throw PackageManagerError.invalidManifest("Band max must be <= 100 in \(metricId)")
+                }
+                lastMax = band.max
+            }
+            
+            // TODO: Optional recommendation - last max should be 100
+        }
+    }
+
+    private func validateThemeAssetPath(_ path: String, packageRoot: URL, label: String) throws {
+        // Relative path, no traversal, no remote URL
+        if path.contains("..") || path.hasPrefix("/") || path.contains("://") {
+            throw PackageManagerError.pathTraversal("\(label): \(path)")
+        }
+        
+        let fileURL = packageRoot.appendingPathComponent(path).standardizedFileURL
+        if !fileURL.path.hasPrefix(packageRoot.standardizedFileURL.path) {
+            throw PackageManagerError.pathTraversal("\(label): \(path)")
+        }
+        
+        // Extension must be png or webp
+        let ext = fileURL.pathExtension.lowercased()
+        guard ext == "png" || ext == "webp" else {
+            throw PackageManagerError.invalidManifest("\(label) has unsupported extension: \(ext). Only png/webp allowed.")
+        }
+        
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            throw PackageManagerError.missingRequiredFile("\(label) (\(path))")
+        }
+    }
+
+    private func validateHexColor(_ color: String, elementId: String) throws {
+        let pattern = "^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$"
+        let regex = try NSRegularExpression(pattern: pattern)
+        guard regex.firstMatch(in: color, range: NSRange(color.startIndex..., in: color)) != nil else {
+            throw PackageManagerError.invalidManifest("Invalid hex color: \(color) in element \(elementId)")
         }
     }
 

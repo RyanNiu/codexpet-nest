@@ -9,8 +9,20 @@ final class NestRenderer: NSView {
     
     private var orbitRenderer: UsageOrbitRenderer?
     private var layerViews: [NSImageView] = []
+    private var elementViews: [NSView] = []
+    private var elementRenderers: [NestElementRenderer] = []
+    
+    private let metricProviders: [MetricProvider] = [
+        UsageMetricProvider(),
+        SystemMetricProvider()
+    ]
+    private var metricSnapshot = MetricSnapshot()
+    private var metricTimer: Timer?
+    
     private var activeNest: InstalledNest?
 
+    override var isFlipped: Bool { true }
+    
     static let orbitNestId = "capacity-orbit-nest"
 
     override init(frame: NSRect) {
@@ -29,6 +41,11 @@ final class NestRenderer: NSView {
         )
         
         activeNestChanged()
+        startMetricTimer()
+    }
+
+    deinit {
+        metricTimer?.invalidate()
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -58,6 +75,16 @@ final class NestRenderer: NSView {
                 layoutCustom(nest)
             } else {
                 layoutDefault()
+            }
+        }
+    }
+    
+    private func layoutElements(_ nest: InstalledNest) {
+        guard let elements = nest.layout.elements else { return }
+        for (i, element) in elements.enumerated() {
+            if i < elementViews.count {
+                elementViews[i].frame = element.frame.cgRect
+                elementViews[i].isHidden = false
             }
         }
     }
@@ -95,6 +122,9 @@ final class NestRenderer: NSView {
                 layerViews[i].isHidden = false
             }
         }
+        
+        // Layout elements
+        layoutElements(nest)
         
         // Layout widgets
         let slots = nest.layout.widgetSlots ?? [:]
@@ -167,7 +197,13 @@ final class NestRenderer: NSView {
         for v in layerViews { v.removeFromSuperview() }
         layerViews.removeAll()
         
+        // Clear old elements
+        for v in elementViews { v.removeFromSuperview() }
+        elementViews.removeAll()
+        elementRenderers.removeAll()
+        
         if let nest = activeNest {
+            // Rebuild layers
             for layer in nest.layout.layers {
                 let imgURL = nest.rootURL.appendingPathComponent(layer.src)
                 if let image = NSImage(contentsOf: imgURL) {
@@ -177,12 +213,71 @@ final class NestRenderer: NSView {
                     layerViews.append(iv)
                 }
             }
+            
+            // Rebuild elements
+            if let elements = nest.layout.elements {
+                for element in elements {
+                    let view: NSView
+                    var renderer: NestElementRenderer?
+                    
+                    switch element {
+                    case .staticImage(let e):
+                        let iv = NSImageView()
+                        iv.imageScaling = .scaleAxesIndependently
+                        let imgURL = nest.rootURL.appendingPathComponent(e.src)
+                        iv.image = NSImage(contentsOf: imgURL)
+                        view = iv
+                    case .variantImage(let e):
+                        let r = VariantImageRenderer(element: e, rootURL: nest.rootURL)
+                        view = r
+                        renderer = r
+                    case .metricText(let e):
+                        let r = MetricTextRenderer(element: e)
+                        view = r
+                        renderer = r
+                    case .metricGauge(let e):
+                        let r = MetricGaugeRenderer(element: e)
+                        view = r
+                        renderer = r
+                    }
+                    
+                    // Layering: elements are above layers
+                    let topLayer = layerViews.last
+                    addSubview(view, positioned: .above, relativeTo: topLayer)
+                    elementViews.append(view)
+                    if let renderer = renderer {
+                        elementRenderers.append(renderer)
+                    }
+                }
+            }
         }
         
         NotificationCenter.default.post(name: .nestSizeChanged, object: nil)
         updateAppearance()
         rebuildWidgets() // Force rebuild to switch orbit/default mode
+        refreshMetrics() // Update immediately
         needsLayout = true
+    }
+    
+    // TODO: Implement metricBands logic to allow themes to change element styles (e.g. color) based on metric value ranges
+    
+    private func startMetricTimer() {
+        metricTimer?.invalidate()
+        metricTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            self?.refreshMetrics()
+        }
+    }
+    
+    private func refreshMetrics() {
+        var newSnapshot = MetricSnapshot()
+        for provider in metricProviders {
+            newSnapshot = newSnapshot.merging(provider.snapshot())
+        }
+        self.metricSnapshot = newSnapshot
+        
+        for renderer in elementRenderers {
+            renderer.update(snapshot: self.metricSnapshot)
+        }
     }
     
     private func updateAppearance() {

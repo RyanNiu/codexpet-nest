@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.1.0",
+  "canvas": { "width": 320, "height": 180 },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "src": "assets/background.png",
+      "frame": { "x": 0, "y": 0, "width": 320, "height": 180 }
+    }
+  ],
+  "elements": [
+    {
+      "id": "trainer-badge",
+      "type": "variantImage",
+      "metric": "usage.primary.remaining_band",
+      "frame": { "x": 240, "y": 20, "width": 48, "height": 48 },
+      "variants": {
+        "full": "assets/badge_full.png",
+        "high": "assets/badge_full.png",
+        "medium": "assets/badge_medium.png",
+        "low": "assets/badge_low.png",
+        "empty": "assets/badge_empty.png"
+      },
+      "fallback": "assets/badge_medium.png"
+    },
+    {
+      "id": "plan-type",
+      "type": "metricText",
+      "metric": "usage.plan_type",
+      "frame": { "x": 110, "y": 30, "width": 120, "height": 20 },
+      "style": {
+        "fontSize": 14,
+        "fontWeight": "bold",
+        "color": "#00F2FF",
+        "alignment": "left"
+      }
+    },
+    {
+      "id": "source",
+      "type": "metricText",
+      "metric": "usage.source",
+      "frame": { "x": 110, "y": 50, "width": 100, "height": 16 },
+      "style": {
+        "fontSize": 10,
+        "color": "#AAAAAA",
+        "alignment": "left",
+        "prefix": "Source: "
+      }
+    },
+    {
+      "id": "primary-bar",
+      "type": "metricGauge",
+      "metric": "usage.primary.remaining_ratio",
+      "renderer": "linearBar",
+      "frame": { "x": 30, "y": 90, "width": 260, "height": 8 },
+      "style": {
+        "fillColor": "#00F2FF",
+        "trackColor": "#FFFFFF1A",
+        "direction": "leftToRight",
+        "cornerRadius": 4
+      }
+    },
+    {
+      "id": "primary-text",
+      "type": "metricText",
+      "metric": "usage.primary.remaining_percent",
+      "frame": { "x": 30, "y": 70, "width": 100, "height": 16 },
+      "style": {
+        "fontSize": 11,
+        "color": "#FFFFFF",
+        "alignment": "left",
+        "prefix": "5H Quota: ",
+        "suffix": "%"
+      }
+    },
+    {
+      "id": "primary-reset",
+      "type": "metricText",
+      "metric": "usage.primary.reset_label",
+      "frame": { "x": 160, "y": 70, "width": 130, "height": 16 },
+      "style": {
+        "fontSize": 10,
+        "color": "#AAAAAA",
+        "alignment": "right"
+      }
+    },
+    {
+      "id": "secondary-bar",
+      "type": "metricGauge",
+      "metric": "usage.secondary.remaining_ratio",
+      "renderer": "linearBar",
+      "frame": { "x": 30, "y": 130, "width": 260, "height": 8 },
+      "style": {
+        "fillColor": "#BF00FF",
+        "trackColor": "#FFFFFF1A",
+        "direction": "leftToRight",
+        "cornerRadius": 4
+      }
+    },
+    {
+      "id": "secondary-text",
+      "type": "metricText",
+      "metric": "usage.secondary.remaining_percent",
+      "frame": { "x": 30, "y": 110, "width": 100, "height": 16 },
+      "style": {
+        "fontSize": 11,
+        "color": "#FFFFFF",
+        "alignment": "left",
+        "prefix": "7D Quota: ",
+        "suffix": "%"
+      }
+    },
+    {
+      "id": "secondary-reset",
+      "type": "metricText",
+      "metric": "usage.secondary.reset_label",
+      "frame": { "x": 160, "y": 110, "width": 130, "height": 16 },
+      "style": {
+        "fontSize": 10,
+        "color": "#AAAAAA",
+        "alignment": "right"
+      }
+    }
+  ]
+}

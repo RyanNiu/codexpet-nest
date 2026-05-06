@@ -1,0 +1,13 @@
+{
+  "type": "codexpet.nest",
+  "schemaVersion": "1.1.0",
+  "id": "trainer-card-nest",
+  "name": "Trainer Card Nest",
+  "version": "1.0.0",
+  "author": "CodexPet",
+  "description": "A futuristic trainer profile card displaying usage details and status badges.",
+  "preview": "preview.png",
+  "layout": "nest.json",
+  "license": "MIT",
+  "tags": ["official", "v1.1", "cyberpunk"]
+}

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "1.1.0",
+  "canvas": { "width": 320, "height": 180 },
+  "layers": [
+    {
+      "id": "bg",
+      "type": "image",
+      "src": "assets/background.png",
+      "frame": { "x": 0, "y": 0, "width": 320, "height": 180 }
+    }
+  ],
+  "elements": [
+    {
+      "id": "hp-orb",
+      "type": "metricGauge",
+      "metric": "usage.secondary.remaining_ratio",
+      "renderer": "circleFill",
+      "frame": { "x": 35, "y": 75, "width": 80, "height": 80 },
+      "style": {
+        "fillColor": "#D92A2A",
+        "trackColor": "#301012",
+        "direction": "bottomToTop"
+      }
+    },
+    {
+      "id": "mp-orb",
+      "type": "metricGauge",
+      "metric": "usage.primary.remaining_ratio",
+      "renderer": "circleFill",
+      "frame": { "x": 205, "y": 75, "width": 80, "height": 80 },
+      "style": {
+        "fillColor": "#2E7BFF",
+        "trackColor": "#071B38",
+        "direction": "bottomToTop"
+      }
+    },
+    {
+      "id": "hp-text",
+      "type": "metricText",
+      "metric": "usage.secondary.remaining_percent",
+      "frame": { "x": 40, "y": 140, "width": 70, "height": 16 },
+      "style": {
+        "fontSize": 11,
+        "fontWeight": "bold",
+        "color": "#FFFFFF",
+        "suffix": "%"
+      }
+    },
+    {
+      "id": "mp-text",
+      "type": "metricText",
+      "metric": "usage.primary.remaining_percent",
+      "frame": { "x": 210, "y": 140, "width": 70, "height": 16 },
+      "style": {
+        "fontSize": 11,
+        "fontWeight": "bold",
+        "color": "#FFFFFF",
+        "suffix": "%"
+      }
+    },
+    {
+      "id": "low-quota-warning",
+      "type": "variantImage",
+      "metric": "usage.primary.remaining_band",
+      "frame": { "x": 144, "y": 20, "width": 32, "height": 32 },
+      "variants": {
+        "empty": "assets/warning.png",
+        "low": "assets/warning.png"
+      }
+    }
+  ]
+}

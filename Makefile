@@ -48,7 +48,16 @@ dev: all
 	@echo "Starting app with console logging..."
 	./$(EXEC)
 
-clean:
-	rm -rf $(BUILD_DIR)
+package-nests-v1.1:
+	@echo "Packaging v1.1 nests..."
+	@rm -f docs/test-fixtures/nests-v1.1/*.zip
+	@(cd docs/test-fixtures/nests-v1.1/legend-status-nest && zip -r -X ../legend-status-nest.zip . -x ".*" -x "__MACOSX")
+	@(cd docs/test-fixtures/nests-v1.1/trainer-card-nest && zip -r -X ../trainer-card-nest.zip . -x ".*" -x "__MACOSX")
+	@(cd docs/test-fixtures/nests-v1.1/window-desk-nest && zip -r -X ../window-desk-nest.zip . -x ".*" -x "__MACOSX")
+	@echo "v1.1 nests packaged successfully."
 
-.PHONY: all debug release app run clean
+validate-nests-v1.1: all
+	@echo "Starting v1.1 nest validation..."
+	@CODEXPET_VALIDATE_NESTS_V11=1 ./$(EXEC)
+
+.PHONY: all debug release app run clean package-nests-v1.1 validate-nests-v1.1

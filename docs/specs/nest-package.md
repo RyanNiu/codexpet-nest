@@ -2,6 +2,11 @@
 
 本文档定义了 CodexPet Nest 小窝外观包（nest skin）的标准格式。
 
+> v1.1 的指标驱动主题草案见
+> [`docs/specs/nest-theme-v1.1.md`](nest-theme-v1.1.md)。v1.0 是当前已交付
+> 的静态包格式，v1.1 在保持兼容的基础上新增 `elements`,
+> `metricBands`, metric catalog, and renderer presets.
+
 ## 1. 包结构
 
 一个标准的小窝外观包是一个 ZIP 压缩包，根目录必须包含以下文件：

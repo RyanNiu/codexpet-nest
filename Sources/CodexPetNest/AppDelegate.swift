@@ -5,6 +5,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var nestWindow: NestOverlayWindow!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["CODEXPET_VALIDATE_NESTS_V11"] == "1" {
+            Task {
+                let defaultPath = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                    .appendingPathComponent("docs/test-fixtures/nests-v1.1")
+                let pathStr = ProcessInfo.processInfo.environment["CODEXPET_NEST_FIXTURES_DIR"] ?? defaultPath.path
+                let fixturesDir = URL(fileURLWithPath: pathStr)
+                
+                let success = await DevNestPackageValidator.runValidation(fixturesDir: fixturesDir)
+                exit(success ? 0 : 1)
+            }
+            return
+        }
+        #endif
+
         NSApp.setActivationPolicy(.accessory)
 
         menuBarController = MenuBarController()
