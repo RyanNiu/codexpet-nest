@@ -12,7 +12,7 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered, defer: false
         )
-        window.title = "Manage Local Nests"
+        window.title = "Manage Nests"
         window.center()
         super.init(window: window)
         setupUI()
@@ -30,24 +30,30 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
     }
     
     private func setupUI() {
-        let scrollView = NSScrollView(frame: window!.contentView!.bounds)
-        scrollView.autoresizingMask = [.width, .height]
+        guard let contentView = window?.contentView else { return }
+
+        let scrollView = NSScrollView()
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
+        scrollView.borderType = .noBorder
         
-        tableView = NSTableView(frame: scrollView.bounds)
+        tableView = NSTableView()
         tableView.headerView = nil
         tableView.dataSource = self
         tableView.delegate = self
+        tableView.rowHeight = 74
+        tableView.intercellSpacing = NSSize(width: 0, height: 4)
+        tableView.selectionHighlightStyle = .regular
         
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("NestColumn"))
-        column.width = tableView.bounds.width
+        column.resizingMask = .autoresizingMask
         tableView.addTableColumn(column)
         
         scrollView.documentView = tableView
-        window?.contentView?.addSubview(scrollView)
+        contentView.addSubview(scrollView)
         
-        // Toolbar or Buttons
-        let bottomBar = NSStackView(frame: NSRect(x: 20, y: 10, width: 560, height: 30))
+        let bottomBar = NSStackView()
+        bottomBar.translatesAutoresizingMaskIntoConstraints = false
         bottomBar.orientation = .horizontal
         bottomBar.spacing = 10
         bottomBar.alignment = .centerY
@@ -59,10 +65,19 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         bottomBar.addArrangedSubview(refreshBtn)
         bottomBar.addArrangedSubview(NSView()) // Spacer
         
-        window?.contentView?.addSubview(bottomBar)
-        
-        // Adjust scrollView frame to leave space for bottomBar
-        scrollView.frame = NSRect(x: 0, y: 50, width: 600, height: 350)
+        contentView.addSubview(bottomBar)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -8),
+
+            bottomBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            bottomBar.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
+            bottomBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            bottomBar.heightAnchor.constraint(equalToConstant: 32)
+        ])
     }
     
     @objc private func refreshData() {
@@ -73,84 +88,86 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
     // MARK: - TableView
     
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return nests.count + 2 // +2 for "Default" and "Capacity Orbit"
+        return nests.count + 1 // +1 for "Capacity Orbit"
     }
     
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let view = NSTableCellView()
         view.identifier = NSUserInterfaceItemIdentifier("NestCell")
-        
-        let stack = NSStackView()
-        stack.orientation = .horizontal
-        stack.spacing = 12
-        stack.alignment = .centerY
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(stack)
-        
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 5),
-            stack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -5)
-        ])
-        
+
         let iconView = NSImageView()
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.wantsLayer = true
         iconView.layer?.cornerRadius = 4
         iconView.layer?.masksToBounds = true
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        iconView.heightAnchor.constraint(equalToConstant: 45).isActive = true
-        stack.addArrangedSubview(iconView)
+        view.addSubview(iconView)
         
         let infoStack = NSStackView()
         infoStack.orientation = .vertical
         infoStack.alignment = .leading
-        infoStack.spacing = 2
-        stack.addArrangedSubview(infoStack)
+        infoStack.spacing = 4
+        infoStack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(infoStack)
         
         let titleLabel = NSTextField(labelWithString: "")
         titleLabel.font = NSFont.boldSystemFont(ofSize: 13)
+        titleLabel.textColor = .labelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.maximumNumberOfLines = 1
         infoStack.addArrangedSubview(titleLabel)
         
         let authorLabel = NSTextField(labelWithString: "")
         authorLabel.font = NSFont.systemFont(ofSize: 11)
         authorLabel.textColor = .secondaryLabelColor
+        authorLabel.lineBreakMode = .byTruncatingTail
+        authorLabel.maximumNumberOfLines = 2
         infoStack.addArrangedSubview(authorLabel)
-        
-        let spacer = NSView()
-        stack.addArrangedSubview(spacer)
-        
+
         let activeLabel = NSTextField(labelWithString: "Active")
         activeLabel.font = NSFont.boldSystemFont(ofSize: 11)
         activeLabel.textColor = .systemGreen
         activeLabel.isHidden = true
-        stack.addArrangedSubview(activeLabel)
+        activeLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(activeLabel)
         
         let useBtn = NSButton(title: "Use", target: self, action: #selector(useNest(_:)))
         useBtn.bezelStyle = .rounded
-        stack.addArrangedSubview(useBtn)
+        useBtn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(useBtn)
         
         let menuBtn = NSButton(image: NSImage(named: NSImage.actionTemplateName)!, target: self, action: #selector(showMenu(_:)))
         menuBtn.bezelStyle = .recessed
         menuBtn.isBordered = false
-        stack.addArrangedSubview(menuBtn)
+        menuBtn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(menuBtn)
+
+        NSLayoutConstraint.activate([
+            iconView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            iconView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 60),
+            iconView.heightAnchor.constraint(equalToConstant: 45),
+
+            infoStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 14),
+            infoStack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            infoStack.trailingAnchor.constraint(lessThanOrEqualTo: activeLabel.leadingAnchor, constant: -12),
+
+            activeLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            activeLabel.trailingAnchor.constraint(equalTo: useBtn.leadingAnchor, constant: -12),
+
+            useBtn.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            useBtn.widthAnchor.constraint(equalToConstant: 72),
+            useBtn.trailingAnchor.constraint(equalTo: menuBtn.leadingAnchor, constant: -8),
+
+            menuBtn.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            menuBtn.widthAnchor.constraint(equalToConstant: 28),
+            menuBtn.heightAnchor.constraint(equalToConstant: 28),
+            menuBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
+        ])
         
         let currentNestId = SettingsStore.shared.settings.activeNestId
         
         if row == 0 {
-            titleLabel.stringValue = "Classic Nest"
-            authorLabel.stringValue = "Built-in / Default"
-            iconView.image = NSImage(named: NSImage.applicationIconName)
-            useBtn.tag = -1
-            menuBtn.tag = -1
-            menuBtn.isEnabled = false
-            if currentNestId == "default" {
-                activeLabel.isHidden = false
-                useBtn.isEnabled = false
-            }
-        } else if row == 1 {
             titleLabel.stringValue = "Capacity Orbit"
             authorLabel.stringValue = "Built-in • Shows live usage rings around your pet"
             iconView.image = NSImage(named: NSImage.networkName)
@@ -162,7 +179,7 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
                 useBtn.isEnabled = false
             }
         } else {
-            let nest = nests[row - 2]
+            let nest = nests[row - 1]
             titleLabel.stringValue = nest.name
             authorLabel.stringValue = "v\(nest.version) by \(nest.author)"
             if let pURL = nest.previewURL {
@@ -170,8 +187,8 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
             } else {
                 iconView.image = NSImage(named: NSImage.networkName)
             }
-            useBtn.tag = row - 2
-            menuBtn.tag = row - 2
+            useBtn.tag = row - 1
+            menuBtn.tag = row - 1
             if currentNestId == nest.id {
                 activeLabel.isHidden = false
                 useBtn.isEnabled = false
@@ -180,18 +197,16 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         
         return view
     }
-    
+
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        return 60
+        return 74
     }
     
     // MARK: - Actions
     
     @objc private func useNest(_ sender: NSButton) {
         let id: String
-        if sender.tag == -1 {
-            id = "default"
-        } else if sender.tag == -2 {
+        if sender.tag == -2 {
             id = "capacity-orbit-nest"
         } else {
             id = nests[sender.tag].id

@@ -85,37 +85,14 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu(title: "CodexPet Nest")
-        let activeId = SettingsStore.shared.settings.activeNestId
         
-        let classicItem = NSMenuItem(title: "Use Classic Nest",
-                                     action: #selector(MenuActionTarget.activateClassicNest),
-                                     keyEquivalent: "")
-        classicItem.state = activeId == "default" ? .on : .off
-        menu.addItem(classicItem)
+        let showHideTitle = SettingsStore.shared.settings.showNest ? "Hide Nest" : "Show Nest"
+        menu.addItem(NSMenuItem(title: showHideTitle, action: #selector(MenuActionTarget.toggleShowNest), keyEquivalent: ""))
         
-        let orbitItem = NSMenuItem(title: "Use Capacity Orbit Nest",
-                                   action: #selector(MenuActionTarget.activateOrbitNest),
-                                   keyEquivalent: "")
-        orbitItem.state = activeId == "capacity-orbit-nest" ? .on : .off
-        menu.addItem(orbitItem)
+        menu.addItem(NSMenuItem(title: "Manage Nests", action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Manage Pets", action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: ""))
         
-        menu.addItem(.separator())
-        
-        menu.addItem(NSMenuItem(title: "Toggle Pomodoro", action: #selector(MenuActionTarget.togglePomodoro), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Set Countdown", action: #selector(MenuActionTarget.setCountdown), keyEquivalent: ""))
-        
-        let usageEnabled = SettingsStore.shared.widgetEnabled("usage")
-        let usageTitle = usageEnabled ? "Hide Usage Indicator" : "Show Usage Indicator"
-        menu.addItem(NSMenuItem(title: usageTitle, action: #selector(MenuActionTarget.toggleUsage), keyEquivalent: ""))
-        
-        menu.addItem(.separator())
-        
-        menu.addItem(NSMenuItem(title: "Browse Pets", action: #selector(MenuActionTarget.browsePets), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Browse Nests", action: #selector(MenuActionTarget.browseNests), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Settings", action: #selector(MenuActionTarget.openSettings), keyEquivalent: ""))
-        
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit CodexPet Nest", action: #selector(NSApplication.terminate), keyEquivalent: "q"))
+
         
         // Only set target for items intended for MenuActionTarget
         for item in menu.items {
@@ -127,6 +104,13 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     }
 
     private func poll() {
+        guard SettingsStore.shared.settings.showNest else {
+            if isVisible {
+                orderOut(nil)
+            }
+            return
+        }
+
         let result = reader.read()
 
         switch result {
@@ -194,17 +178,18 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
     private func computeNestFrame(petFrame: NSRect, screen: NSScreen) -> NSRect {
         let activeId = SettingsStore.shared.settings.activeNestId
-        if activeId == NestRenderer.orbitNestId {
-            let size = currentSize
-            // Center the orbit nest on the pet
-            return NSRect(x: petFrame.midX - size.width / 2,
-                          y: petFrame.midY - size.height / 2,
-                          width: size.width, height: size.height)
-        }
-
-        let pos = SettingsStore.shared.settings.nestPosition
-        let sf = screen.visibleFrame
         let size = currentSize
+        let sf = screen.visibleFrame
+
+        func clamp(_ r: NSRect) -> NSRect {
+            var r = r
+            let margin: CGFloat = 8
+            if r.minX < sf.minX + margin { r.origin.x = sf.minX + margin }
+            if r.maxX > sf.maxX - margin { r.origin.x = sf.maxX - margin - r.width }
+            if r.minY < sf.minY + margin { r.origin.y = sf.minY + margin }
+            if r.maxY > sf.maxY - margin { r.origin.y = sf.maxY - margin - r.height }
+            return r
+        }
 
         func rectFor(_ candidate: String) -> NSRect {
             switch candidate {
@@ -229,22 +214,35 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
             }
         }
 
-        func clamp(_ r: NSRect) -> NSRect {
-            var r = r
-            let margin: CGFloat = 8
-            if r.minX < sf.minX + margin { r.origin.x = sf.minX + margin }
-            if r.maxX > sf.maxX - margin { r.origin.x = sf.maxX - margin - r.width }
-            if r.minY < sf.minY + margin { r.origin.y = sf.minY + margin }
-            if r.maxY > sf.maxY - margin { r.origin.y = sf.maxY - margin - r.height }
-            return r
-        }
-
         func visibleRatio(_ r: NSRect) -> CGFloat {
             let inter = r.intersection(sf)
             guard inter.width > 0, inter.height > 0 else { return 0 }
             return (inter.width * inter.height) / (r.width * r.height)
         }
 
+        // 1. Orbit Nest logic
+        if activeId == NestRenderer.orbitNestId {
+            // Center the orbit nest on the pet
+            return NSRect(x: petFrame.midX - size.width / 2,
+                          y: petFrame.midY - size.height / 2,
+                          width: size.width, height: size.height)
+        }
+
+        // 2. V1.1 petSlot logic
+        if let activeNest = LocalNestManager.shared.getActiveNest(),
+           let petSlot = activeNest.layout.canvas.petSlot {
+            let slotCenterX = petSlot.x + petSlot.width / 2
+            let slotCenterYFromTop = petSlot.y + petSlot.height / 2
+            let slotCenterYFromBottom = size.height - slotCenterYFromTop
+            
+            let originX = petFrame.midX - CGFloat(slotCenterX)
+            let originY = petFrame.midY - CGFloat(slotCenterYFromBottom)
+            
+            return clamp(NSRect(x: originX, y: originY, width: size.width, height: size.height))
+        }
+
+        // 3. Standard positional logic
+        let pos = SettingsStore.shared.settings.nestPosition
         if pos == "auto" {
             let candidates = ["bottom", "right", "left", "top"]
             var best: String?
@@ -260,9 +258,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
                     bestScore = score
                     best = c
                 }
-                if vr >= 0.95 && edge == 0 {
-                    break
-                }
+                if vr >= 0.95 && edge == 0 { break }
             }
             return clamp(rectFor(best ?? "bottom"))
         }

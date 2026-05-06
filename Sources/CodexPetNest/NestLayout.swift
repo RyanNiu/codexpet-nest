@@ -13,6 +13,7 @@ struct NestLayout: Codable, Equatable {
 struct NestCanvas: Codable, Equatable {
     let width: Double
     let height: Double
+    let petSlot: NestRect?
 }
 
 struct NestLayer: Codable, Equatable {

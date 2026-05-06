@@ -7,9 +7,9 @@ final class LocalPetManagerWindowController: NSWindowController {
     private init() {
         let vc = LocalPetManagerViewController()
         let window = NSWindow(contentViewController: vc)
-        window.title = "Manage Local Pets"
+        window.title = "Manage Pets"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 600, height: 400))
+        window.setContentSize(NSSize(width: 600, height: 420))
         window.center()
         super.init(window: window)
     }
@@ -36,7 +36,8 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     private let previewImage = NSImageView()
     
     private let openFinderBtn = NSButton(title: "Open in Finder", target: nil, action: nil)
-    private let uninstallBtn = NSButton(title: "Uninstall", target: nil, action: nil)
+    private let uninstallBtn = NSButton(title: "Delete Pet", target: nil, action: nil)
+    private let browseMarketplaceBtn = NSButton(title: "Add / Browse Pets", target: nil, action: nil)
     private let installBtn = NSButton(title: "Install Local Pet ZIP...", target: nil, action: nil)
     private let openCodexSettingsBtn = NSButton(title: "Open Codex Settings", target: nil, action: nil)
     
@@ -44,9 +45,9 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     private var cancellables = Set<AnyCancellable>()
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 420))
         
-        scrollView.frame = NSRect(x: 0, y: 50, width: 220, height: 350)
+        scrollView.frame = NSRect(x: 0, y: 70, width: 220, height: 350)
         scrollView.hasVerticalScroller = true
         scrollView.autoresizingMask = [.height]
         
@@ -58,26 +59,32 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         scrollView.documentView = tableView
         view.addSubview(scrollView)
         
-        detailView.frame = NSRect(x: 220, y: 50, width: 380, height: 350)
+        detailView.frame = NSRect(x: 220, y: 70, width: 380, height: 350)
         detailView.autoresizingMask = [.width, .height]
         view.addSubview(detailView)
         
         setupDetailView()
         
-        let bottomBar = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 50))
+        let bottomBar = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 70))
         bottomBar.autoresizingMask = [.width]
         view.addSubview(bottomBar)
         
-        installBtn.frame = NSRect(x: 20, y: 10, width: 180, height: 30)
+        browseMarketplaceBtn.frame = NSRect(x: 20, y: 35, width: 180, height: 25)
+        browseMarketplaceBtn.target = self
+        browseMarketplaceBtn.action = #selector(openMarketplace)
+        browseMarketplaceBtn.bezelStyle = .rounded
+        browseMarketplaceBtn.contentTintColor = .systemBlue
+        bottomBar.addSubview(browseMarketplaceBtn)
+
+        installBtn.frame = NSRect(x: 20, y: 10, width: 180, height: 25)
         installBtn.target = self
         installBtn.action = #selector(installLocalZip)
         bottomBar.addSubview(installBtn)
         
-        openCodexSettingsBtn.frame = NSRect(x: 400, y: 10, width: 180, height: 30)
+        openCodexSettingsBtn.frame = NSRect(x: 400, y: 10, width: 180, height: 50)
         openCodexSettingsBtn.target = self
         openCodexSettingsBtn.action = #selector(openCodexSettings)
         openCodexSettingsBtn.bezelStyle = .rounded
-        openCodexSettingsBtn.contentTintColor = .systemBlue
         bottomBar.addSubview(openCodexSettingsBtn)
         
         emptyLabel.frame = NSRect(x: 20, y: 200, width: 180, height: 40)
@@ -168,10 +175,14 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
             previewImage.image = NSImage(systemSymbolName: "Questionmark.square", accessibilityDescription: nil)
         }
         
-        uninstallBtn.title = pet.isAppManaged ? "Uninstall" : "Remove Folder"
+        uninstallBtn.title = pet.isAppManaged ? "Delete Pet" : "Remove Folder"
     }
 
     // MARK: - Actions
+
+    @objc private func openMarketplace() {
+        OnlinePetMarketplaceWindowController.shared.show()
+    }
 
     @objc private func openInFinder() {
         let row = tableView.selectedRow

@@ -99,6 +99,19 @@ final class SettingsViewController: NSViewController {
     private let focusField = NSTextField(frame: .zero)
     private let breakField = NSTextField(frame: .zero)
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshUI), name: .settingsChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshUI), name: .toggleNestVisibility, object: nil)
+    }
+
+    @objc private func refreshUI() {
+        showNestCheck.state = SettingsStore.shared.settings.showNest ? .on : .off
+        positionPopup.selectItem(withTitle: SettingsStore.shared.settings.nestPosition)
+        focusField.stringValue = String(SettingsStore.shared.settings.pomodoro.focusMinutes)
+        breakField.stringValue = String(SettingsStore.shared.settings.pomodoro.breakMinutes)
+    }
+
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: 320))
 

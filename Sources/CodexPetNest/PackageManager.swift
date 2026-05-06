@@ -44,7 +44,7 @@ enum PackageManagerError: Error, LocalizedError {
         case .downloadFailed(let msg): return "Download failed: \(msg)"
         case .sha256Mismatch(let exp, let act): return "SHA256 mismatch. Expected \(exp.prefix(16))..., got \(act.prefix(16))..."
         case .unzipFailed(let msg): return "Unzip failed: \(msg)"
-        case .missingManifest: return "Missing codexpet-package.json"
+        case .missingManifest: return "This pet package is missing codexpet-package.json. Please use a CodexPet package zip."
         case .invalidManifest(let msg): return "Invalid package manifest: \(msg)"
         case .missingRequiredFile(let f): return "Missing required file: \(f)"
         case .pathTraversal(let p): return "Unsafe path detected: \(p)"
@@ -178,6 +178,9 @@ final class PackageManager {
         var manifests: [(manifest: PackageManifest, url: URL)] = []
 
         while let fileURL = enumerator?.nextObject() as? URL {
+            // Skip __MACOSX metadata folders
+            if fileURL.path.contains("__MACOSX") { continue }
+            
             if fileURL.lastPathComponent == "codexpet-package.json" {
                 let data = try Data(contentsOf: fileURL)
                 do {
@@ -192,8 +195,10 @@ final class PackageManager {
         if manifests.isEmpty {
             throw PackageManagerError.missingManifest
         }
-        if manifests.count > 1 {
-            throw PackageManagerError.invalidManifest("Multiple codexpet-package.json found")
+        
+        // If multiple manifests found (e.g. nested packages), pick the shallowest one that isn't in __MACOSX
+        manifests.sort { a, b in
+            a.url.path.count < b.url.path.count
         }
 
         let entry = manifests[0]
@@ -202,10 +207,18 @@ final class PackageManager {
         let normalizedWorkDir = workDir.standardizedFileURL
         let normalizedPackageRoot = packageRoot.standardizedFileURL
         
+        // Check if packageRoot is workDir or a direct child of workDir
         if normalizedPackageRoot != normalizedWorkDir {
             let parent = normalizedPackageRoot.deletingLastPathComponent()
             if parent != normalizedWorkDir {
-                throw PackageManagerError.invalidManifest("Package root must be ZIP root or a single top-level folder")
+                // If it's deeper, we allow it but log a warning? 
+                // The user request says "根目录只有一个子目录，子目录里包含 codexpet-package.json"
+                // Let's check if the path between workDir and packageRoot is just one folder.
+                let relativePath = normalizedPackageRoot.path.replacingOccurrences(of: normalizedWorkDir.path, with: "")
+                let components = relativePath.components(separatedBy: "/").filter { !$0.isEmpty }
+                if components.count > 1 {
+                    throw PackageManagerError.invalidManifest("Package root must be ZIP root or a single top-level folder. Found at: \(relativePath)")
+                }
             }
         }
 

@@ -5,7 +5,7 @@ final class DevNestPackageValidator {
     static func runValidation(fixturesDir: URL) async -> Bool {
         print("[DevValidator] Starting v1.1 Nest Theme validation...")
         
-        let themes = ["legend-status-nest", "trainer-card-nest", "window-desk-nest"]
+        let themes = ["basket-pomodoro-nest", "legend-status-nest", "trainer-card-nest", "window-desk-nest"]
         let manager = PackageManager.shared
         let originalActiveId = SettingsStore.shared.settings.activeNestId
         var overallSuccess = true

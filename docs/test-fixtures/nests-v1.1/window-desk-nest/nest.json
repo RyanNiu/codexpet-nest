@@ -1,35 +1,24 @@
 {
   "schemaVersion": "1.1.0",
-  "canvas": { "width": 320, "height": 180 },
+  "canvas": { "width": 420, "height": 242, "petSlot": { "x": 64, "y": 64, "width": 100, "height": 100 } },
   "layers": [
     {
       "id": "bg",
       "type": "image",
       "src": "assets/background.png",
-      "frame": { "x": 0, "y": 0, "width": 320, "height": 180 }
+      "frame": { "x": 0, "y": 0, "width": 420, "height": 242 }
     }
   ],
   "elements": [
     {
-      "id": "day-night-icon",
-      "type": "variantImage",
-      "metric": "system.time.day_period",
-      "frame": { "x": 200, "y": 20, "width": 32, "height": 32 },
-      "variants": {
-        "day": "assets/sun.png",
-        "night": "assets/moon.png"
-      },
-      "fallback": "assets/sun.png"
-    },
-    {
       "id": "clock-text",
       "type": "metricText",
       "metric": "system.time.hhmm",
-      "frame": { "x": 105, "y": 70, "width": 110, "height": 30 },
+      "frame": { "x": 262, "y": 60, "width": 88, "height": 30 },
       "style": {
-        "fontSize": 24,
+        "fontSize": 22,
         "fontWeight": "bold",
-        "color": "#333333",
+        "color": "#65FF68",
         "alignment": "center"
       }
     },
@@ -38,12 +27,25 @@
       "type": "metricGauge",
       "metric": "usage.primary.remaining_ratio",
       "renderer": "linearBar",
-      "frame": { "x": 60, "y": 140, "width": 200, "height": 6 },
+      "frame": { "x": 226, "y": 134, "width": 86, "height": 8 },
       "style": {
-        "fillColor": "#4CAF50",
-        "trackColor": "#00000022",
+        "fillColor": "#65E572",
+        "trackColor": "#0A1B18",
         "direction": "leftToRight",
         "cornerRadius": 3
+      }
+    },
+    {
+      "id": "primary-usage-text",
+      "type": "metricText",
+      "metric": "usage.primary.remaining_percent",
+      "frame": { "x": 330, "y": 125, "width": 48, "height": 20 },
+      "style": {
+        "fontSize": 13,
+        "fontWeight": "bold",
+        "color": "#FFFFFF",
+        "alignment": "right",
+        "suffix": "%"
       }
     },
     {
@@ -51,12 +53,25 @@
       "type": "metricGauge",
       "metric": "usage.secondary.remaining_ratio",
       "renderer": "linearBar",
-      "frame": { "x": 60, "y": 150, "width": 200, "height": 6 },
+      "frame": { "x": 226, "y": 159, "width": 86, "height": 8 },
       "style": {
-        "fillColor": "#2196F3",
-        "trackColor": "#00000022",
+        "fillColor": "#2F8BFF",
+        "trackColor": "#0A1B18",
         "direction": "leftToRight",
         "cornerRadius": 3
+      }
+    },
+    {
+      "id": "secondary-usage-text",
+      "type": "metricText",
+      "metric": "usage.secondary.remaining_percent",
+      "frame": { "x": 330, "y": 150, "width": 48, "height": 20 },
+      "style": {
+        "fontSize": 13,
+        "fontWeight": "bold",
+        "color": "#FFFFFF",
+        "alignment": "right",
+        "suffix": "%"
       }
     }
   ]

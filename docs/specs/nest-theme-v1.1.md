@@ -505,7 +505,15 @@ Renderers should not know where metrics come from.
 
 ## 9. Official Theme Validation
 
-The first v1.1 implementation should be validated with three official themes:
+The first v1.1 implementation should be validated with four official themes:
+
+### Basket Pomodoro Nest
+
+Purpose:
+
+- Validate that a built-in widget can live inside a v1.1 nest composition.
+- Place the pet inside a cozy basket instead of beside the nest.
+- Keep the theme visually simple with a single Pomodoro timer surface.
 
 ### Legend Status Nest
 
@@ -514,7 +522,7 @@ Purpose:
 - Validate `circleFill`.
 - Map 7-day remaining quota to HP.
 - Map 5-hour remaining quota to MP.
-- Validate metric text and low-quota styling.
+- Place the pet inside the center of a dark fantasy building.
 
 ### Trainer Card Nest
 
@@ -523,14 +531,15 @@ Purpose:
 - Validate dense text layout.
 - Show plan, 5-hour quota, 7-day quota, reset labels, and source.
 - Validate enum-driven badges or images from `remaining_band`.
+- Place the pet inside the profile portrait slot.
 
-### Window Desk Nest
+### Nest Terminal
 
 Purpose:
 
-- Validate `system.time.day_period`.
-- Swap sun and moon images.
-- Validate background layering and `linearBar`.
+- Validate system time text and linear quota bars.
+- Place the pet inside a retro computer screen.
+- Validate that larger v1.1 canvases avoid pet and background compression.
 
 If these themes are possible without new package code execution, the v1.1
 abstraction is strong enough for the next editor step.

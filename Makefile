@@ -51,6 +51,7 @@ dev: all
 package-nests-v1.1:
 	@echo "Packaging v1.1 nests..."
 	@rm -f docs/test-fixtures/nests-v1.1/*.zip
+	@(cd docs/test-fixtures/nests-v1.1/basket-pomodoro-nest && zip -r -X ../basket-pomodoro-nest.zip . -x ".*" -x "__MACOSX")
 	@(cd docs/test-fixtures/nests-v1.1/legend-status-nest && zip -r -X ../legend-status-nest.zip . -x ".*" -x "__MACOSX")
 	@(cd docs/test-fixtures/nests-v1.1/trainer-card-nest && zip -r -X ../trainer-card-nest.zip . -x ".*" -x "__MACOSX")
 	@(cd docs/test-fixtures/nests-v1.1/window-desk-nest && zip -r -X ../window-desk-nest.zip . -x ".*" -x "__MACOSX")

@@ -435,8 +435,8 @@ final class CodexPetAPI {
 
     // MARK: - Pets
 
-    func listPets(search: String? = nil, tag: String? = nil, sort: String? = nil, page: Int = 1) async throws -> PetListResponse {
-        var query: [String: String] = ["page": String(page)]
+    func listPets(search: String? = nil, tag: String? = nil, sort: String? = nil, page: Int = 1, limit: Int = 10) async throws -> PetListResponse {
+        var query: [String: String] = ["page": String(page), "limit": String(limit)]
         if let s = search, !s.isEmpty { query["search"] = s }
         if let t = tag, !t.isEmpty { query["tag"] = t }
         if let s = sort, !s.isEmpty { query["sort"] = s }

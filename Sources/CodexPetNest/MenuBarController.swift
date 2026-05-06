@@ -28,50 +28,24 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: showHideTitle,
                                  action: #selector(MenuActionTarget.toggleShowNest),
                                  keyEquivalent: ""))
-        menu.addItem(withTitle: "Manage Local Pets...", action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: "m")
-        menu.addItem(withTitle: "Manage Local Nests...", action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: "")
+        menu.addItem(withTitle: "Manage Pets...", action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: "m")
+        menu.addItem(withTitle: "Manage Nests...", action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: "")
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(title: "Pet Marketplace",
+        menu.addItem(NSMenuItem(title: "Open Pets Marketplace...",
                                  action: #selector(MenuActionTarget.browsePets),
+                                 keyEquivalent: ","))
+
+        menu.addItem(.separator())
+        
+        menu.addItem(NSMenuItem(title: "Open codexpet.xyz",
+                                 action: #selector(MenuActionTarget.openWebsite),
                                  keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Nest Marketplace",
-                                 action: #selector(MenuActionTarget.browseNests),
-                                 keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Upload Pet Pack",
-                                 action: #selector(MenuActionTarget.uploadPet),
-                                 keyEquivalent: ""))
-        
-        let usageEnabled = SettingsStore.shared.widgetEnabled("usage")
-        let usageTitle = usageEnabled ? "Hide Usage Indicator" : "Show Usage Indicator"
-        menu.addItem(NSMenuItem(title: usageTitle,
-                                 action: #selector(MenuActionTarget.toggleUsage),
-                                 keyEquivalent: ""))
-        
-        let activeId = SettingsStore.shared.settings.activeNestId
-        
-        let classicItem = NSMenuItem(title: "Use Classic Nest",
-                                     action: #selector(MenuActionTarget.activateClassicNest),
-                                     keyEquivalent: "")
-        classicItem.state = activeId == "default" ? .on : .off
-        menu.addItem(classicItem)
-        
-        let orbitItem = NSMenuItem(title: "Use Capacity Orbit Nest",
-                                   action: #selector(MenuActionTarget.activateOrbitNest),
-                                   keyEquivalent: "")
-        orbitItem.state = activeId == "capacity-orbit-nest" ? .on : .off
-        menu.addItem(orbitItem)
-        
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(title: "Check for Updates...",
                                  action: #selector(MenuActionTarget.checkForUpdates),
                                  keyEquivalent: ""))
-        menu.addItem(.separator())
-
-        menu.addItem(NSMenuItem(title: "Settings...",
-                                 action: #selector(MenuActionTarget.openSettings),
-                                 keyEquivalent: ","))
         menu.addItem(.separator())
 
         let quitItem = NSMenuItem(title: "Quit CodexPet Nest",
@@ -99,15 +73,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
 extension MenuActionTarget {
     @objc func toggleShowNest() {
-        if SettingsStore.shared.settings.showNest {
-            SettingsStore.shared.settings.showNest = false
-            SettingsStore.shared.save()
-            for w in NSApp.windows where w is NestOverlayWindow { w.orderOut(nil) }
-        } else {
-            SettingsStore.shared.settings.showNest = true
-            SettingsStore.shared.save()
-            for w in NSApp.windows where w is NestOverlayWindow { w.orderFront(nil) }
-        }
+        let newState = !SettingsStore.shared.settings.showNest
+        SettingsStore.shared.settings.showNest = newState
+        SettingsStore.shared.save()
+        
+        NotificationCenter.default.post(name: .toggleNestVisibility, object: newState)
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
     }
 
     @objc func checkForUpdates() {
@@ -156,6 +127,10 @@ extension MenuActionTarget {
 
     @objc func uploadPet() {
         NSWorkspace.shared.open(URL(string: "https://codexpet.xyz/submit")!)
+    }
+
+    @objc func openWebsite() {
+        NSWorkspace.shared.open(URL(string: "https://codexpet.xyz")!)
     }
 
     @objc func toggleUsage() {

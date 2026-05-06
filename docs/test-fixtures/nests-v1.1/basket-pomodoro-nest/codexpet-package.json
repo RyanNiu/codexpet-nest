@@ -1,0 +1,13 @@
+{
+  "type": "codexpet.nest",
+  "schemaVersion": "1.1.0",
+  "id": "basket-pomodoro-nest",
+  "name": "Basket Pomodoro Nest",
+  "version": "1.0.0",
+  "author": "CodexPet",
+  "description": "A cozy basket where the pet rests with a focused Pomodoro timer.",
+  "preview": "preview.png",
+  "layout": "nest.json",
+  "license": "MIT",
+  "tags": ["official", "v1.1", "pomodoro", "cozy"]
+}
