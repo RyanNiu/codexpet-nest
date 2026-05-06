@@ -279,7 +279,9 @@ CodexPet Nest 是一个专注于宠物小窝、小组件、皮肤市场以及创
 
 ## 许可证
 
-MIT — 详见 [LICENSE](LICENSE)。
+FSL-1.1-MIT — CodexPet Nest 源码可见，可用于非竞争性用途，并将于 2028-05-06 自动转换为 MIT License。详见 [LICENSE](LICENSE)。
+
+本仓库包含 CodexPet Nest bridge integrations 的再分发例外：非官方再分发、环境适配 fork 与兼容性改造是允许的，但必须清楚标明为非官方且不受官方支持，不得暗示 Ryan Niu 或 CodexPet Nest 的认可。
 
 ## 隐私与安全
 
