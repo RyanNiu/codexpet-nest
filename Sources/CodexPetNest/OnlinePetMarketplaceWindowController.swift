@@ -462,6 +462,7 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
                     let desc: SpriteSheetDescriptor?
                     if let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) {
                         desc = PetSpriteSheetRenderer.shared.detectDescriptor(cgImage: cg)
+                        PetSpriteSheetRenderer.shared.debugExportContactSheet(cgImage: cg, desc: desc!, petId: pet.id)
                     } else {
                         desc = nil
                     }

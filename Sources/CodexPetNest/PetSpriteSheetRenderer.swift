@@ -22,12 +22,13 @@ final class PetSpriteSheetRenderer {
     
     private init() {}
     
-    /// Heuristic to detect frame size based on CGImage pixels
+    /// Heuristic to detect frame size based on CGImage pixel dimensions.
+    /// Prioritizes standard 8x9 atlas if divisible.
     func detectDescriptor(cgImage: CGImage, manifest: [String: Any]? = nil) -> SpriteSheetDescriptor {
         let pixelWidth = cgImage.width
         let pixelHeight = cgImage.height
         
-        // 1. Try to read from manifest
+        // 1. Try to read from manifest if provided
         if let manifest = manifest {
             let fw = manifest["frameWidth"] as? Int ?? (manifest["frameSize"] as? Int)
             let fh = manifest["frameHeight"] as? Int ?? (manifest["frameSize"] as? Int)
@@ -45,8 +46,9 @@ final class PetSpriteSheetRenderer {
             }
         }
         
-        // 2. Default Codex Pet Atlas: 8x9
-        if pixelWidth % 8 == 0 && pixelHeight % 9 == 0 {
+        // 2. Default Codex Pet Atlas: Priority 8x9
+        // Requirement: "如果 pixelWidth 能被 8 整除，pixelHeight 能被 9 整除，直接用 8x9"
+        if pixelWidth >= 8 && pixelHeight >= 9 && pixelWidth % 8 == 0 && pixelHeight % 9 == 0 {
             return SpriteSheetDescriptor(
                 frameWidth: pixelWidth / 8,
                 frameHeight: pixelHeight / 9,
@@ -56,7 +58,7 @@ final class PetSpriteSheetRenderer {
             )
         }
         
-        // 3. Fallback to square heuristics
+        // 3. Fallback to common square heuristics
         let commonSizes = [80, 128, 64, 96, 48, 32]
         for size in commonSizes {
             if pixelWidth % size == 0 && pixelHeight % size == 0 {
@@ -70,7 +72,7 @@ final class PetSpriteSheetRenderer {
             }
         }
         
-        // Final fallback: single frame or 1x1 grid
+        // 4. Final fallback: single frame
         return SpriteSheetDescriptor(
             frameWidth: pixelWidth,
             frameHeight: pixelHeight,
@@ -84,20 +86,24 @@ final class PetSpriteSheetRenderer {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         let desc = detectDescriptor(cgImage: cgImage)
         
+        // Mandatory debug export if petId is provided
         if let petId = petId {
             debugExportContactSheet(cgImage: cgImage, desc: desc, petId: petId)
         }
         
-        // Find first non-empty frame in row 0
+        // Find first non-empty frame starting from row 0 col 0
         for col in 0..<desc.columns {
-            if let frame = extractFrame(cgImage: cgImage, row: 0, col: col, desc: desc) {
-                if !isFrameEmpty(frame) {
-                    return frame
+            let x = col * desc.frameWidth
+            let y = 0
+            let cropRect = CGRect(x: x, y: y, width: desc.frameWidth, height: desc.frameHeight)
+            if let cropped = cgImage.cropping(to: cropRect) {
+                if !isCGImageEmpty(cropped) {
+                    return NSImage(cgImage: cropped, size: NSSize(width: desc.frameWidth, height: desc.frameHeight))
                 }
             }
         }
         
-        // Fallback to first frame if all empty
+        // Fallback to absolute first frame
         return extractFrame(cgImage: cgImage, row: 0, col: 0, desc: desc)
     }
     
@@ -108,7 +114,7 @@ final class PetSpriteSheetRenderer {
         let fh = desc.frameHeight
         
         let x = col * fw
-        let y = row * fh // Top-down
+        let y = row * fh
         
         let cropRect = CGRect(x: x, y: y, width: fw, height: fh)
         guard let cropped = cgImage.cropping(to: cropRect) else { return nil }
@@ -126,9 +132,14 @@ final class PetSpriteSheetRenderer {
         let maxFramesPerRow = min(desc.columns, 8)
         
         for col in 0..<maxFramesPerRow {
-            if let frame = extractFrame(cgImage: cgImage, row: row, col: col, desc: desc) {
-                if isFrameEmpty(frame) { continue }
-                frames.append(frame)
+            let x = col * desc.frameWidth
+            let y = row * desc.frameHeight
+            let cropRect = CGRect(x: x, y: y, width: desc.frameWidth, height: desc.frameHeight)
+            
+            if let cropped = cgImage.cropping(to: cropRect) {
+                if isCGImageEmpty(cropped) { continue }
+                let nsFrame = NSImage(cgImage: cropped, size: NSSize(width: desc.frameWidth, height: desc.frameHeight))
+                frames.append(nsFrame)
             }
         }
         return frames
@@ -144,19 +155,29 @@ final class PetSpriteSheetRenderer {
         }
     }
     
-    private func isFrameEmpty(_ image: NSImage) -> Bool {
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff) else { return true }
+    /// Checks if a CGImage is effectively empty (all transparent)
+    private func isCGImageEmpty(_ cgImage: CGImage) -> Bool {
+        let width = cgImage.width
+        let height = cgImage.height
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var rawData = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
         
-        // Check a few pixels or full scan for transparency
-        // For performance, we can just check if alpha is 0 everywhere
-        // But for pets, an empty frame usually has 0 alpha for all pixels.
-        for y in 0..<Int(rep.pixelsHigh) {
-            for x in 0..<Int(rep.pixelsWide) {
-                let color = rep.colorAt(x: x, y: y)
-                if color?.alphaComponent ?? 0 > 0.05 {
-                    return false
-                }
+        guard let context = CGContext(data: &rawData,
+                                    width: width,
+                                    height: height,
+                                    bitsPerComponent: 8,
+                                    bytesPerRow: bytesPerRow,
+                                    space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return true }
+        
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+        
+        // Scan for any pixel with alpha > 0.05
+        for i in 0..<(width * height) {
+            let alpha = rawData[i * bytesPerPixel + 3]
+            if alpha > 12 { // approx 0.05 * 255
+                return false
             }
         }
         return true
@@ -179,31 +200,35 @@ final class PetSpriteSheetRenderer {
                                     space: CGColorSpaceCreateDeviceRGB(),
                                     bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
         
+        // Fill background with light grey to see frame boundaries
+        context.setFillColor(NSColor.lightGray.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: totalW, height: totalH))
+        
         for row in 0..<min(desc.rows, gridRows) {
             for col in 0..<min(desc.columns, gridCols) {
                 let x = col * fw
                 let y = row * fh
                 let cropRect = CGRect(x: x, y: y, width: fw, height: fh)
                 if let cropped = cgImage.cropping(to: cropRect) {
-                    // CGContext coordinate system is bottom-left, but we are drawing top-down
-                    let drawRect = CGRect(x: CGFloat(col * fw),
-                                        y: CGFloat(totalH - (row + 1) * fh),
-                                        width: CGFloat(fw),
-                                        height: CGFloat(fh))
+                    // Draw in contact sheet (Flip Y for CGContext)
+                    let drawRect = CGRect(x: col * fw,
+                                        y: totalH - (row + 1) * fh,
+                                        width: fw,
+                                        height: fh)
                     context.draw(cropped, in: drawRect)
                 }
             }
         }
         
         if let outputImage = context.makeImage() {
-            let nsImage = NSImage(cgImage: outputImage, size: NSSize(width: totalW, height: totalH))
-            if let tiff = nsImage.tiffRepresentation,
-               let rep = NSBitmapImageRep(data: tiff),
-               let pngData = rep.representation(using: .png, properties: [:]) {
-                let path = "/tmp/codexpet-frames-\(petId).png"
-                try? pngData.write(to: URL(fileURLWithPath: path))
-                print("[PetSpriteSheetRenderer] DEBUG: Exported contact sheet to \(path)")
+            let url = URL(fileURLWithPath: "/tmp/codexpet-frames-\(petId).png")
+            let destination = CGImageDestinationCreateWithURL(url as CFURL, kUTTypePNG, 1, nil)
+            if let dest = destination {
+                CGImageDestinationAddImage(dest, outputImage, nil)
+                CGImageDestinationFinalize(dest)
+                print("[PetSpriteSheetRenderer] DEBUG: Exported contact sheet to \(url.path)")
             }
         }
     }
 }
+

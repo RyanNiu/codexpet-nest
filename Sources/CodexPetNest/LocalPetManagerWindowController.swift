@@ -202,6 +202,7 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
                     if let r = m.rows { manifestDict["rows"] = r }
                 }
                 self.spriteDescriptor = PetSpriteSheetRenderer.shared.detectDescriptor(cgImage: cg, manifest: manifestDict)
+                PetSpriteSheetRenderer.shared.debugExportContactSheet(cgImage: cg, desc: self.spriteDescriptor!, petId: pet.id)
             }
             updateAnimation()
         } else {
