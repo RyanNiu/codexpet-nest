@@ -32,5 +32,16 @@
 	<string>FSL-1.1-MIT. Converts to MIT on 2028-05-06. Copyright (c) 2026 Ryan Niu.</string>
 	<key>CFBundleIconFile</key>
 	<string>CodexPetNest</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>xyz.codexpet.nest</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>codexpetnest</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

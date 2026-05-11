@@ -35,6 +35,20 @@ CodexPet Nest implements a rigorous validation pipeline for all downloaded conte
 - **Links**: Symbolic links or hard links.
 - **Hash Mismatch**: Any file failing the `sha256` integrity check.
 
+## Quick Actions Security
+
+Quick Actions 组件的所有配置仅存储在本地 `quick-actions.json`，不上传、不同步、不分享。
+
+**安全边界：**
+- Terminal 命令默认需要用户确认，UI 展示完整命令。
+- 不支持从 nest package 下发命令。
+- 不支持网页端配置命令。
+- 不支持分享带命令的动作配置。
+- QuickActionRunner 不静默执行 shell 命令。
+
+**Rejected in nest layout props:**
+- `command`, `appPath`, `shortcutName`, `script`, `shell`
+
 ## macOS permissions
 
 CodexPet Nest is designed to be low-privilege:

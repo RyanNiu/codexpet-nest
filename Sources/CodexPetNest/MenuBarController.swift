@@ -33,6 +33,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                                  keyEquivalent: ""))
         menu.addItem(withTitle: "Manage Pets...", action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: "m")
         menu.addItem(withTitle: "Manage Nests...", action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: "")
+
+        if QuickActionConfigStore.shared.activeNestHasComponent() {
+            menu.addItem(withTitle: "Configure Quick Actions...", action: #selector(MenuActionTarget.configureQuickActions), keyEquivalent: "")
+        }
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(title: "Open Pets Marketplace...",
@@ -187,6 +191,11 @@ extension MenuActionTarget {
         NotificationCenter.default.post(name: .activeNestChanged, object: nil)
         NotificationCenter.default.post(name: .settingsChanged, object: nil)
         NotificationCenter.default.post(name: .nestSizeChanged, object: nil)
+    }
+
+    @objc func configureQuickActions() {
+        guard let nest = LocalNestManager.shared.getActiveNest() else { return }
+        QuickActionsConfigWindowController.shared.show(for: nest.id)
     }
 
     @objc func activateOrbitNest() {

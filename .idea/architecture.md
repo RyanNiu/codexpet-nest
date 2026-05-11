@@ -58,6 +58,22 @@ PackageManager      Shared package pipeline for codexpet.pet and
 
 NestRenderer        NSView that draws the nest. Supports both default rendering
                     and custom skin rendering (layers + widget slots) driven by nest.json.
+
+OfficialComponentFactory  Creates NSView instances for official component IDs.
+                    Three component classes:
+                    1. Pure Display (clockText, dayNightIcon, quotaBar, etc.)
+                    2. Desktop-Bound (future: CPU, Memory, Battery)
+                    3. User-Configured Local (quickActions)
+
+QuickActionsComponent   Renders official.actions.quickActions as a hover/click
+                    action panel. Reads local config, delegates to QuickActionRunner.
+
+QuickActionConfig   Data model and persistence for per-nest quick actions.
+                    Stored in quick-actions.json, grouped by nestId.
+
+QuickActionRunner   Executes actions: open apps, run shortcuts, run terminal
+                    commands (with confirmation). Security: no silent shell,
+                    no remote commands, no config sharing.
 ```
 
 ## Data Flow

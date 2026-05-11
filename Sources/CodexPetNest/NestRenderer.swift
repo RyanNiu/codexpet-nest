@@ -11,6 +11,16 @@ final class NestRenderer: NSView {
     private var layerViews: [NSImageView] = []
     private var elementViews: [NSView] = []
     private var elementRenderers: [NestElementRenderer] = []
+    private var componentViews: [NSView] = []
+    private var componentRenderers: [OfficialComponentRenderer] = []
+
+    private struct RenderItem {
+        let view: NSView
+        let frame: NestRect
+        let zIndex: Int
+        let order: Int
+    }
+    private var renderItems: [RenderItem] = []
     
     private let metricProviders: [MetricProvider] = [
         UsageMetricProvider(),
@@ -69,23 +79,13 @@ final class NestRenderer: NSView {
             countdownWidget?.isHidden = true
             pomodoroWidget?.isHidden = true
             usageWidget?.isHidden = true
-            layerViews.forEach { $0.isHidden = true }
+            renderItems.forEach { $0.view.isHidden = true }
         } else {
             orbitRenderer?.isHidden = true
             if let nest = activeNest {
                 layoutCustom(nest)
             } else {
                 layoutDefault()
-            }
-        }
-    }
-    
-    private func layoutElements(_ nest: InstalledNest) {
-        guard let elements = nest.layout.elements else { return }
-        for (i, element) in elements.enumerated() {
-            if i < elementViews.count {
-                elementViews[i].frame = element.frame.cgRect
-                elementViews[i].isHidden = false
             }
         }
     }
@@ -116,17 +116,12 @@ final class NestRenderer: NSView {
     }
     
     private func layoutCustom(_ nest: InstalledNest) {
-        // Layout layers
-        for (i, layer) in nest.layout.layers.enumerated() {
-            if i < layerViews.count {
-                layerViews[i].frame = layer.frame.cgRect
-                layerViews[i].isHidden = false
-            }
+        // Layout all render items (layers + elements + components) in zIndex order
+        for item in renderItems {
+            item.view.frame = item.frame.cgRect
+            item.view.isHidden = false
         }
-        
-        // Layout elements
-        layoutElements(nest)
-        
+
         // Layout widgets
         let slots = nest.layout.widgetSlots ?? [:]
         
@@ -197,30 +192,44 @@ final class NestRenderer: NSView {
         // Clear old layers
         for v in layerViews { v.removeFromSuperview() }
         layerViews.removeAll()
-        
+
         // Clear old elements
         for v in elementViews { v.removeFromSuperview() }
         elementViews.removeAll()
         elementRenderers.removeAll()
-        
+
+        // Clear old components
+        for v in componentViews { v.removeFromSuperview() }
+        componentViews.removeAll()
+        componentRenderers.removeAll()
+
+        renderItems.removeAll()
+
         if let nest = activeNest {
-            // Rebuild layers
+            var items: [RenderItem] = []
+            var orderCounter = 0
+
+            // Collect image layers (zIndex default 0)
             for layer in nest.layout.layers {
                 let imgURL = nest.rootURL.appendingPathComponent(layer.src)
                 if let image = NSImage(contentsOf: imgURL) {
                     let iv = NSImageView(image: image)
                     iv.imageScaling = .scaleAxesIndependently
-                    addSubview(iv, positioned: .below, relativeTo: nil)
+                    if let opacity = layer.opacity {
+                        iv.alphaValue = CGFloat(opacity)
+                    }
                     layerViews.append(iv)
+                    items.append(RenderItem(view: iv, frame: layer.frame, zIndex: layer.zIndex ?? 0, order: orderCounter))
+                    orderCounter += 1
                 }
             }
-            
-            // Rebuild elements
+
+            // Collect elements (zIndex default 10, between layers and components)
             if let elements = nest.layout.elements {
                 for element in elements {
                     let view: NSView
                     var renderer: NestElementRenderer?
-                    
+
                     switch element {
                     case .staticImage(let e):
                         let iv = NSImageView()
@@ -241,18 +250,42 @@ final class NestRenderer: NSView {
                         view = r
                         renderer = r
                     }
-                    
-                    // Layering: elements are above layers
-                    let topLayer = layerViews.last
-                    addSubview(view, positioned: .above, relativeTo: topLayer)
+
                     elementViews.append(view)
                     if let renderer = renderer {
                         elementRenderers.append(renderer)
                     }
+                    items.append(RenderItem(view: view, frame: element.frame, zIndex: 10, order: orderCounter))
+                    orderCounter += 1
                 }
             }
+
+            // Collect official components (zIndex default 30)
+            if let components = nest.layout.components {
+                for component in components {
+                    guard let view = OfficialComponentFactory.createView(for: component, rootURL: nest.rootURL, nestId: nest.id) else {
+                        continue
+                    }
+                    componentViews.append(view)
+                    if let renderer = view as? OfficialComponentRenderer {
+                        componentRenderers.append(renderer)
+                    }
+                    items.append(RenderItem(view: view, frame: component.frame, zIndex: component.zIndex ?? 30, order: orderCounter))
+                    orderCounter += 1
+                }
+            }
+
+            // Stable sort: zIndex first, then original layout order
+            items.sort {
+                if $0.zIndex == $1.zIndex { return $0.order < $1.order }
+                return $0.zIndex < $1.zIndex
+            }
+            for item in items {
+                addSubview(item.view)
+            }
+            renderItems = items
         }
-        
+
         NotificationCenter.default.post(name: .nestSizeChanged, object: nil)
         updateAppearance()
         rebuildWidgets() // Force rebuild to switch orbit/default mode
@@ -277,6 +310,9 @@ final class NestRenderer: NSView {
         self.metricSnapshot = newSnapshot
         
         for renderer in elementRenderers {
+            renderer.update(snapshot: self.metricSnapshot)
+        }
+        for renderer in componentRenderers {
             renderer.update(snapshot: self.metricSnapshot)
         }
     }

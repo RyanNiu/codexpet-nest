@@ -365,8 +365,9 @@ final class CodexPetAPI {
     private let session: URLSession
     private let decoder: JSONDecoder
 
-    private init(baseURL: String = "https://codexpet.xyz") {
+    private init(baseURL: String = ProcessInfo.processInfo.environment["CODEXPET_API_BASE_URL"] ?? "https://codexpet.xyz") {
         self.baseURL = baseURL
+        print("[CodexPetAPI] baseURL =", self.baseURL)
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30
         config.timeoutIntervalForResource = 120
@@ -560,7 +561,102 @@ final class CodexPetAPI {
         try await get("/api/uploads/\(uploadId)", token: token)
     }
 
+    // MARK: - Desktop Nest Runtime API
+
+    func resolveInstallIntent(token: String) async throws -> InstallIntentResponse {
+        let intent: InstallIntentResponse = try await get("/api/desktop/install-intents/\(token)")
+        return InstallIntentResponse(
+            runtimeToken: intent.runtimeToken,
+            runtimeManifestUrl: normalizeURL(intent.runtimeManifestUrl, baseURL: baseURL),
+            nestId: intent.nestId,
+            version: intent.version
+        )
+    }
+
+    func getRuntimeManifest(url: String) async throws -> RuntimeManifest {
+        let resolved = normalizeURL(url, baseURL: baseURL)
+        guard let u = URL(string: resolved) else { throw CodexPetAPIError.invalidURL }
+        var req = URLRequest(url: u)
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        var manifest = try await perform(req) as RuntimeManifest
+
+        manifest = RuntimeManifest(
+            type: manifest.type,
+            id: manifest.id,
+            version: manifest.version,
+            title: manifest.title,
+            schemaVersion: manifest.schemaVersion,
+            layout: RuntimeLayoutRef(
+                url: normalizeURL(manifest.layout.url, baseURL: baseURL),
+                sha256: manifest.layout.sha256,
+                size: manifest.layout.size
+            ),
+            assets: manifest.assets.map { asset in
+                RuntimeAsset(
+                    path: asset.path,
+                    url: normalizeURL(asset.url, baseURL: baseURL),
+                    sha256: asset.sha256,
+                    contentType: asset.contentType,
+                    size: asset.size
+                )
+            },
+            componentRegistryVersion: manifest.componentRegistryVersion,
+            expiresAt: manifest.expiresAt
+        )
+        return manifest
+    }
+
+    func downloadLayout(url: String) async throws -> Data {
+        return try await downloadData(url: url, accept: "application/json")
+    }
+
+    func downloadAsset(url: String) async throws -> Data {
+        return try await downloadData(url: url, accept: "*/*")
+    }
+
+    func completeInstall(nestId: String, runtimeToken: String) async throws {
+        struct Body: Codable { let runtimeToken: String }
+        let response: InstallCompleteResponse = try await post(
+            "/api/desktop/nests/\(nestId)/install-complete",
+            body: Body(runtimeToken: runtimeToken)
+        )
+        guard response.ok else {
+            throw CodexPetAPIError.httpError(statusCode: 502, apiError: APIError(code: "INSTALL_COMPLETE_FAILED", message: "Server returned ok: false"))
+        }
+    }
+
     // MARK: - Raw Download
+
+    private func downloadData(url: String, accept: String) async throws -> Data {
+        let resolved = normalizeURL(url, baseURL: baseURL)
+        guard let u = URL(string: resolved) else { throw CodexPetAPIError.invalidURL }
+        var req = URLRequest(url: u)
+        req.setValue(accept, forHTTPHeaderField: "Accept")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: req)
+        } catch {
+            throw CodexPetAPIError.networkError(error)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw CodexPetAPIError.httpError(statusCode: 0, apiError: nil)
+        }
+
+        if http.statusCode == 401 {
+            throw CodexPetAPIError.unauthorized
+        }
+
+        if http.statusCode >= 400 {
+            throw CodexPetAPIError.httpError(
+                statusCode: http.statusCode,
+                apiError: APIError(code: "DOWNLOAD_FAILED", message: "HTTP \(http.statusCode) for \(url)")
+            )
+        }
+
+        return data
+    }
 
     func downloadFile(url: String) async throws -> (Data, URLResponse) {
         guard let u = URL(string: url) else { throw CodexPetAPIError.invalidURL }

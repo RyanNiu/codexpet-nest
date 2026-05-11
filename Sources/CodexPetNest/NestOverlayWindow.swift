@@ -228,17 +228,27 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
                           width: size.width, height: size.height)
         }
 
-        // 2. V1.1 petSlot logic
-        if let activeNest = LocalNestManager.shared.getActiveNest(),
-           let petSlot = activeNest.layout.canvas.petSlot {
-            let slotCenterX = petSlot.x + petSlot.width / 2
-            let slotCenterYFromTop = petSlot.y + petSlot.height / 2
-            let slotCenterYFromBottom = size.height - slotCenterYFromTop
-            
-            let originX = petFrame.midX - CGFloat(slotCenterX)
-            let originY = petFrame.midY - CGFloat(slotCenterYFromBottom)
-            
-            return clamp(NSRect(x: originX, y: originY, width: size.width, height: size.height))
+        // 2. V1.1 petSlot logic (check top-level petSlot first, fallback to canvas.petSlot)
+        if let activeNest = LocalNestManager.shared.getActiveNest() {
+            let petSlotRect: NestRect?
+            if let topPetSlot = activeNest.layout.petSlot {
+                petSlotRect = topPetSlot.frame
+            } else if let canvasPetSlot = activeNest.layout.canvas.petSlot {
+                petSlotRect = canvasPetSlot
+            } else {
+                petSlotRect = nil
+            }
+
+            if let petSlot = petSlotRect {
+                let slotCenterX = petSlot.x + petSlot.width / 2
+                let slotCenterYFromTop = petSlot.y + petSlot.height / 2
+                let slotCenterYFromBottom = size.height - slotCenterYFromTop
+
+                let originX = petFrame.midX - CGFloat(slotCenterX)
+                let originY = petFrame.midY - CGFloat(slotCenterYFromBottom)
+
+                return clamp(NSRect(x: originX, y: originY, width: size.width, height: size.height))
+            }
         }
 
         // 3. Standard positional logic

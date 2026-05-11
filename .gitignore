@@ -8,3 +8,4 @@ app-session-*.js
 main-*.js
 scratch/
 test_packages/
+.idea/

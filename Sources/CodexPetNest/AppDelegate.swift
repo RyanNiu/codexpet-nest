@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     .appendingPathComponent("docs/test-fixtures/nests-v1.1")
                 let pathStr = ProcessInfo.processInfo.environment["CODEXPET_NEST_FIXTURES_DIR"] ?? defaultPath.path
                 let fixturesDir = URL(fileURLWithPath: pathStr)
-                
+
                 let success = await DevNestPackageValidator.runValidation(fixturesDir: fixturesDir)
                 exit(success ? 0 : 1)
             }
@@ -37,7 +37,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: .openSettings, object: nil
         )
 
+        // Register custom URL scheme handler
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+
+        if let installURL = ProcessInfo.processInfo.environment["CODEXPET_INSTALL_URL"],
+           let url = URL(string: installURL) {
+            handleInstallURL(url)
+        }
+
         // Task { await checkVersionOnLaunch() }
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            handleInstallURL(url)
+        }
+    }
+
+    @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        guard let urlString = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
+              let url = URL(string: urlString) else {
+            return
+        }
+        handleInstallURL(url)
+    }
+
+    private func handleInstallURL(_ url: URL) {
+        guard url.scheme == "codexpetnest" else { return }
+        Task {
+            await NestInstallService.shared.handleInstallURL(url)
+        }
     }
 
     private func checkVersionOnLaunch() async {
