@@ -1,48 +1,39 @@
 import AppKit
 
-final class LocalNestManagerWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
-    static let shared = LocalNestManagerWindowController()
+final class LocalNestManagerViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    static let shared = LocalNestManagerViewController()
     
     private var tableView: NSTableView!
     private var nests: [InstalledNest] = []
     
-    private init() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 600, height: 400),
-            styleMask: [.titled, .closable, .resizable],
-            backing: .buffered, defer: false
-        )
-        window.title = l("context.manage_nests")
-        window.center()
-        super.init(window: window)
+    override func viewDidLoad() {
+        super.viewDidLoad()
         setupUI()
         refreshData()
-        
         NotificationCenter.default.addObserver(self, selector: #selector(refreshData), name: .installedNestsChanged, object: nil)
     }
     
-    required init?(coder: NSCoder) { fatalError() }
-    
-    func show() {
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        refreshData()
+    override func loadView() {
+        self.view = NSView()
     }
     
     private func setupUI() {
-        guard let contentView = window?.contentView else { return }
+        let contentView = self.view
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .noBorder
+        NestUI.panel(scrollView)
         
         tableView = NSTableView()
         tableView.headerView = nil
         tableView.dataSource = self
         tableView.delegate = self
-        tableView.rowHeight = 74
-        tableView.intercellSpacing = NSSize(width: 0, height: 4)
+        tableView.rowHeight = 82
+        tableView.intercellSpacing = NSSize(width: 0, height: 6)
         tableView.selectionHighlightStyle = .regular
         
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("NestColumn"))
@@ -60,6 +51,8 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         
         let installBtn = NSButton(title: l("manage.install_local_nest"), target: self, action: #selector(installLocalNest))
         let refreshBtn = NSButton(title: l("manage.refresh"), target: self, action: #selector(refreshData))
+        NestUI.stylePrimaryButton(installBtn)
+        NestUI.styleSecondaryButton(refreshBtn)
         
         bottomBar.addArrangedSubview(installBtn)
         bottomBar.addArrangedSubview(refreshBtn)
@@ -68,9 +61,9 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         contentView.addSubview(bottomBar)
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            scrollView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
             scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -8),
 
             bottomBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
@@ -94,11 +87,13 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let view = NSTableCellView()
         view.identifier = NSUserInterfaceItemIdentifier("NestCell")
+        NestUI.panel(view, color: .controlBackgroundColor)
 
         let iconView = NSImageView()
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.wantsLayer = true
-        iconView.layer?.cornerRadius = 4
+        iconView.layer?.cornerRadius = 6
+        iconView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         iconView.layer?.masksToBounds = true
         iconView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(iconView)
@@ -124,15 +119,20 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         authorLabel.maximumNumberOfLines = 2
         infoStack.addArrangedSubview(authorLabel)
 
-        let activeLabel = NSTextField(labelWithString: l("manage.active"))
-        activeLabel.font = NSFont.boldSystemFont(ofSize: 11)
-        activeLabel.textColor = .systemGreen
-        activeLabel.isHidden = true
-        activeLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(activeLabel)
-        
+        let badgeStack = NSStackView()
+        badgeStack.orientation = .horizontal
+        badgeStack.spacing = 6
+        badgeStack.alignment = .centerY
+        badgeStack.translatesAutoresizingMaskIntoConstraints = false
+        infoStack.addArrangedSubview(badgeStack)
+
+        let activeBadge = NestUI.badge(l("manage.active"), color: .systemGreen)
+        let sourceBadge = NestUI.badge("", color: .systemBlue)
+        badgeStack.addArrangedSubview(activeBadge)
+        badgeStack.addArrangedSubview(sourceBadge)
+
         let useBtn = NSButton(title: l("manage.use"), target: self, action: #selector(useNest(_:)))
-        useBtn.bezelStyle = .rounded
+        NestUI.styleSecondaryButton(useBtn)
         useBtn.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(useBtn)
         
@@ -143,17 +143,14 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
         view.addSubview(menuBtn)
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            iconView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             iconView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 60),
-            iconView.heightAnchor.constraint(equalToConstant: 45),
+            iconView.widthAnchor.constraint(equalToConstant: 64),
+            iconView.heightAnchor.constraint(equalToConstant: 48),
 
             infoStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 14),
             infoStack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            infoStack.trailingAnchor.constraint(lessThanOrEqualTo: activeLabel.leadingAnchor, constant: -12),
-
-            activeLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
-            activeLabel.trailingAnchor.constraint(equalTo: useBtn.leadingAnchor, constant: -12),
+            infoStack.trailingAnchor.constraint(lessThanOrEqualTo: useBtn.leadingAnchor, constant: -16),
 
             useBtn.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             useBtn.widthAnchor.constraint(equalToConstant: 72),
@@ -171,12 +168,15 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
             titleLabel.stringValue = l("manage.orbit_title")
             authorLabel.stringValue = l("manage.orbit_desc")
             iconView.image = NSImage(named: NSImage.networkName)
+            sourceBadge.stringValue = "Built-in"
             useBtn.tag = -2
             menuBtn.tag = -2
             menuBtn.isEnabled = false
             if currentNestId == "capacity-orbit-nest" {
-                activeLabel.isHidden = false
+                activeBadge.isHidden = false
                 useBtn.isEnabled = false
+            } else {
+                activeBadge.isHidden = true
             }
         } else {
             let nest = nests[row - 1]
@@ -187,6 +187,9 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
             } else {
                 authorLabel.stringValue = "v\(nest.version) by \(nest.author)"
             }
+            sourceBadge.stringValue = nest.isBuiltIn ? "Built-in" : "Local"
+            sourceBadge.textColor = nest.isBuiltIn ? .systemTeal : .systemBlue
+            sourceBadge.layer?.backgroundColor = (sourceBadge.textColor ?? .systemBlue).withAlphaComponent(0.12).cgColor
             
             if let pURL = nest.previewURL {
                 iconView.image = NSImage(contentsOf: pURL)
@@ -196,8 +199,10 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
             useBtn.tag = row - 1
             menuBtn.tag = row - 1
             if currentNestId == nest.id {
-                activeLabel.isHidden = false
+                activeBadge.isHidden = false
                 useBtn.isEnabled = false
+            } else {
+                activeBadge.isHidden = true
             }
         }
         
@@ -205,7 +210,7 @@ final class LocalNestManagerWindowController: NSWindowController, NSTableViewDat
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        return 74
+        return 82
     }
     
     // MARK: - Actions

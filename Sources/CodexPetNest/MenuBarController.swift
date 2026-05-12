@@ -120,19 +120,23 @@ extension MenuActionTarget {
     }
 
     @objc func manageLocalPets() {
-        LocalPetManagerWindowController.shared.show()
+        MainWindowController.shared.show()
+        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "myPets", title: l("menu.manage_pets"), iconName: "pawprint", isCategory: false)])
     }
 
     @objc func manageLocalNests() {
-        LocalNestManagerWindowController.shared.show()
+        MainWindowController.shared.show()
+        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "nestManager", title: l("menu.manage_nests"), iconName: "house", isCategory: false)])
     }
 
     @objc func browsePets() {
-        OnlinePetMarketplaceWindowController.shared.show()
+        MainWindowController.shared.show()
+        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "marketplace", title: l("menu.open_marketplace"), iconName: "bag", isCategory: false)])
     }
 
     @objc func browseNests() {
-        OnlineNestMarketplaceWindowController.shared.show()
+        MainWindowController.shared.show()
+        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "nestManager", title: l("menu.manage_nests"), iconName: "house", isCategory: false)])
     }
 
     @objc func uploadPet() {

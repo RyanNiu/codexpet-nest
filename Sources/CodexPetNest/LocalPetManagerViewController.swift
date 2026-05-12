@@ -1,29 +1,15 @@
 import AppKit
 import Combine
 
-final class LocalPetManagerWindowController: NSWindowController {
-    static let shared = LocalPetManagerWindowController()
-
-    private init() {
-        let vc = LocalPetManagerViewController()
-        let window = NSWindow(contentViewController: vc)
-        window.title = l("context.manage_pets")
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 600, height: 420))
-        window.center()
-        super.init(window: window)
-    }
-
-    required init?(coder: NSCoder) { fatalError() }
-
-    func show() {
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        (contentViewController as? LocalPetManagerViewController)?.refresh()
-    }
-}
-
 final class LocalPetManagerViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
+    static let shared = LocalPetManagerViewController()
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        refresh()
+    }
+
+    // Merged into LocalPetManagerViewController
     private let tableView = NSTableView()
     private let scrollView = NSScrollView()
     private let detailView = NSView()
@@ -46,59 +32,92 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     
     private let previewView = AnimatedSpritePreviewView()
     private let actionPopup = NSPopUpButton()
+    private let statusBadge = NestUI.badge("", color: .secondaryLabelColor)
+    private let sourceBadge = NestUI.badge("", color: .systemBlue)
     private var previewActions: [PetPreviewAction] = []
     private var spritesheetImage: NSImage?
     private var spriteDescriptor: SpriteSheetDescriptor?
 
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 420))
-        
-        scrollView.frame = NSRect(x: 0, y: 70, width: 220, height: 350)
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 520))
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
-        scrollView.autoresizingMask = [.height]
+        scrollView.borderType = .noBorder
+        NestUI.panel(scrollView)
         
         tableView.headerView = nil
         tableView.dataSource = self
         tableView.delegate = self
+        tableView.rowHeight = 58
+        tableView.intercellSpacing = NSSize(width: 0, height: 2)
+        tableView.selectionHighlightStyle = .regular
         tableView.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("PetColumn")))
         
         scrollView.documentView = tableView
         view.addSubview(scrollView)
         
-        detailView.frame = NSRect(x: 220, y: 70, width: 380, height: 350)
-        detailView.autoresizingMask = [.width, .height]
+        detailView.translatesAutoresizingMaskIntoConstraints = false
+        NestUI.panel(detailView, color: .controlBackgroundColor)
         view.addSubview(detailView)
         
         setupDetailView()
         
-        let bottomBar = NSView(frame: NSRect(x: 0, y: 0, width: 600, height: 70))
-        bottomBar.autoresizingMask = [.width]
-        view.addSubview(bottomBar)
-        
-        browseMarketplaceBtn.frame = NSRect(x: 20, y: 35, width: 180, height: 25)
+        let bottomBar = NSStackView()
+        bottomBar.translatesAutoresizingMaskIntoConstraints = false
+        bottomBar.orientation = .horizontal
+        bottomBar.spacing = 10
+        bottomBar.alignment = .centerY
+
         browseMarketplaceBtn.target = self
         browseMarketplaceBtn.action = #selector(openMarketplace)
-        browseMarketplaceBtn.bezelStyle = .rounded
-        browseMarketplaceBtn.contentTintColor = .systemBlue
-        bottomBar.addSubview(browseMarketplaceBtn)
+        NestUI.styleSecondaryButton(browseMarketplaceBtn)
+        browseMarketplaceBtn.contentTintColor = .systemTeal
+        bottomBar.addArrangedSubview(browseMarketplaceBtn)
 
-        installBtn.frame = NSRect(x: 20, y: 10, width: 180, height: 25)
         installBtn.target = self
         installBtn.action = #selector(installLocalZip)
-        bottomBar.addSubview(installBtn)
+        NestUI.stylePrimaryButton(installBtn)
+        bottomBar.addArrangedSubview(installBtn)
+
+        let spacer = NSView()
+        bottomBar.addArrangedSubview(spacer)
         
-        openCodexSettingsBtn.frame = NSRect(x: 400, y: 10, width: 180, height: 50)
         openCodexSettingsBtn.target = self
         openCodexSettingsBtn.action = #selector(openCodexSettings)
-        openCodexSettingsBtn.bezelStyle = .rounded
-        bottomBar.addSubview(openCodexSettingsBtn)
+        NestUI.styleSecondaryButton(openCodexSettingsBtn)
+        bottomBar.addArrangedSubview(openCodexSettingsBtn)
+        view.addSubview(bottomBar)
         
-        emptyLabel.frame = NSRect(x: 20, y: 200, width: 180, height: 40)
+        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
         emptyLabel.alignment = .center
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.isHidden = true
         view.addSubview(emptyLabel)
+
+        NSLayoutConstraint.activate([
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
+            scrollView.widthAnchor.constraint(equalToConstant: 250),
+
+            detailView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 16),
+            detailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            detailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            detailView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
+
+            bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
+            bottomBar.heightAnchor.constraint(equalToConstant: 32),
+
+            emptyLabel.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
+            emptyLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
+            emptyLabel.widthAnchor.constraint(lessThanOrEqualTo: scrollView.widthAnchor, constant: -24)
+        ])
         
         LocalPetManager.shared.$pets
             .receive(on: RunLoop.main)
@@ -115,43 +134,87 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     }
 
     private func setupDetailView() {
-        nameLabel.font = .boldSystemFont(ofSize: 18)
-        nameLabel.frame = NSRect(x: 20, y: 310, width: 340, height: 25)
+        [nameLabel, idLabel, statusLabel, previewView, actionPopup, descLabel, openFinderBtn, uninstallBtn, statusBadge, sourceBadge].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+        }
+
+        NestUI.configureLabel(nameLabel, size: 20, weight: .bold)
         detailView.addSubview(nameLabel)
         
-        idLabel.font = .systemFont(ofSize: 12)
-        idLabel.textColor = .secondaryLabelColor
-        idLabel.frame = NSRect(x: 20, y: 290, width: 340, height: 15)
+        NestUI.configureLabel(idLabel, size: 12, color: .secondaryLabelColor)
         detailView.addSubview(idLabel)
         
-        statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
-        statusLabel.frame = NSRect(x: 20, y: 270, width: 340, height: 15)
+        NestUI.configureLabel(statusLabel, size: 12, color: .secondaryLabelColor)
         detailView.addSubview(statusLabel)
+        detailView.addSubview(statusBadge)
+        detailView.addSubview(sourceBadge)
         
-        previewView.frame = NSRect(x: 20, y: 140, width: 200, height: 200)
-        previewView.wantsLayer = true
-        previewView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        previewView.layer?.cornerRadius = 8
+        NestUI.previewSurface(previewView)
         detailView.addSubview(previewView)
         
         actionPopup.target = self
         actionPopup.action = #selector(actionChanged)
-        actionPopup.frame = NSRect(x: 20, y: 110, width: 200, height: 25)
         detailView.addSubview(actionPopup)
         
-        descLabel.frame = NSRect(x: 20, y: 55, width: 340, height: 50)
+        descLabel.font = .systemFont(ofSize: 13)
+        descLabel.textColor = .labelColor
+        descLabel.maximumNumberOfLines = 3
         detailView.addSubview(descLabel)
 
-        
-        openFinderBtn.frame = NSRect(x: 20, y: 20, width: 120, height: 30)
         openFinderBtn.target = self
         openFinderBtn.action = #selector(openInFinder)
+        NestUI.styleSecondaryButton(openFinderBtn)
         detailView.addSubview(openFinderBtn)
         
-        uninstallBtn.frame = NSRect(x: 150, y: 20, width: 100, height: 30)
         uninstallBtn.target = self
         uninstallBtn.action = #selector(uninstallPet)
+        NestUI.styleSecondaryButton(uninstallBtn)
+        uninstallBtn.contentTintColor = .systemRed
         detailView.addSubview(uninstallBtn)
+
+        NSLayoutConstraint.activate([
+            previewView.topAnchor.constraint(equalTo: detailView.topAnchor, constant: 18),
+            previewView.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 18),
+            previewView.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -18),
+            previewView.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
+            previewView.heightAnchor.constraint(equalTo: detailView.heightAnchor, multiplier: 0.48),
+
+            actionPopup.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 10),
+            actionPopup.centerXAnchor.constraint(equalTo: previewView.centerXAnchor),
+            actionPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
+
+            nameLabel.topAnchor.constraint(equalTo: actionPopup.bottomAnchor, constant: 16),
+            nameLabel.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 18),
+            nameLabel.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -18),
+
+            idLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 3),
+            idLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            idLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
+
+            statusBadge.topAnchor.constraint(equalTo: idLabel.bottomAnchor, constant: 10),
+            statusBadge.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            statusBadge.heightAnchor.constraint(equalToConstant: 22),
+            statusBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 58),
+
+            sourceBadge.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor),
+            sourceBadge.leadingAnchor.constraint(equalTo: statusBadge.trailingAnchor, constant: 8),
+            sourceBadge.heightAnchor.constraint(equalToConstant: 22),
+            sourceBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 58),
+
+            statusLabel.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor),
+            statusLabel.leadingAnchor.constraint(equalTo: sourceBadge.trailingAnchor, constant: 10),
+            statusLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
+
+            descLabel.topAnchor.constraint(equalTo: statusBadge.bottomAnchor, constant: 12),
+            descLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            descLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
+
+            openFinderBtn.bottomAnchor.constraint(equalTo: detailView.bottomAnchor, constant: -18),
+            openFinderBtn.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+
+            uninstallBtn.centerYAnchor.constraint(equalTo: openFinderBtn.centerYAnchor),
+            uninstallBtn.leadingAnchor.constraint(equalTo: openFinderBtn.trailingAnchor, constant: 10)
+        ])
     }
 
     func refresh() {
@@ -174,10 +237,19 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         if pet.isCurrent {
             statusLabel.stringValue = l("manage.currently_active")
             statusLabel.textColor = .systemGreen
+            statusBadge.stringValue = l("manage.active")
+            statusBadge.textColor = .systemGreen
+            statusBadge.layer?.backgroundColor = NSColor.systemGreen.withAlphaComponent(0.12).cgColor
         } else {
             statusLabel.stringValue = l("manage.inactive")
             statusLabel.textColor = .secondaryLabelColor
+            statusBadge.stringValue = l("manage.inactive")
+            statusBadge.textColor = .secondaryLabelColor
+            statusBadge.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.10).cgColor
         }
+        sourceBadge.stringValue = pet.isAppManaged ? "Nest" : "Local"
+        sourceBadge.textColor = pet.isAppManaged ? .systemTeal : .systemBlue
+        sourceBadge.layer?.backgroundColor = (sourceBadge.textColor ?? .systemBlue).withAlphaComponent(0.12).cgColor
         
         // Load preview
         spritesheetImage = nil
@@ -248,7 +320,7 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     // MARK: - Actions
 
     @objc private func openMarketplace() {
-        OnlinePetMarketplaceWindowController.shared.show()
+        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "marketplace", title: l("menu.open_marketplace"), iconName: "bag", isCategory: false)])
     }
 
     @objc private func openInFinder() {
@@ -369,24 +441,46 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
             
             let imgView = NSImageView()
             imgView.imageScaling = .scaleProportionallyUpOrDown
-            imgView.frame = NSRect(x: 5, y: 2, width: 40, height: 40)
+            imgView.translatesAutoresizingMaskIntoConstraints = false
             imgView.wantsLayer = true
-            imgView.layer?.cornerRadius = 4
-            imgView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.05).cgColor
+            imgView.layer?.cornerRadius = 6
+            imgView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
             cell?.addSubview(imgView)
             cell?.imageView = imgView
             
             let textField = NSTextField(labelWithString: "")
             textField.font = .systemFont(ofSize: 13, weight: .medium)
-            textField.frame = NSRect(x: 50, y: 12, width: 160, height: 20)
+            textField.translatesAutoresizingMaskIntoConstraints = false
             cell?.addSubview(textField)
             cell?.textField = textField
+
+            let subField = NSTextField(labelWithString: "")
+            subField.font = .systemFont(ofSize: 11)
+            subField.textColor = .secondaryLabelColor
+            subField.translatesAutoresizingMaskIntoConstraints = false
+            cell?.addSubview(subField)
+
+            NSLayoutConstraint.activate([
+                imgView.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
+                imgView.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
+                imgView.widthAnchor.constraint(equalToConstant: 42),
+                imgView.heightAnchor.constraint(equalToConstant: 42),
+                textField.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
+                textField.leadingAnchor.constraint(equalTo: imgView.trailingAnchor, constant: 10),
+                textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
+                subField.topAnchor.constraint(equalTo: textField.bottomAnchor, constant: 2),
+                subField.leadingAnchor.constraint(equalTo: textField.leadingAnchor),
+                subField.trailingAnchor.constraint(equalTo: textField.trailingAnchor)
+            ])
         }
         
         var display = pet.displayName
         if pet.isCurrent { display += l("manage.active_suffix") }
         cell?.textField?.stringValue = display
         cell?.textField?.textColor = pet.isCurrent ? .systemGreen : .labelColor
+        if let subField = cell?.subviews.compactMap({ $0 as? NSTextField }).last {
+            subField.stringValue = pet.isAppManaged ? "Nest" : "Local"
+        }
         
         // Thumbnail
         cell?.imageView?.image = nil
@@ -406,7 +500,7 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     }
     
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        return 44
+        return 58
     }
 
 

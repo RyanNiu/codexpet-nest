@@ -278,7 +278,7 @@ final class QuickActionsConfigWindowController: NSWindowController, NSTableViewD
 
     private func presentEditSheet(for existing: QuickActionConfig?) {
         let sheet = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 320),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 360),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
@@ -322,6 +322,7 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
 
     private var nameField: NSTextField!
     private var iconField: NSTextField!
+    private var iconButtons: [NSButton] = []
     private var kindPopup: NSPopUpButton!
     private var targetField: DropTargetTextField!
     private var browseBtn: NSButton!
@@ -340,7 +341,7 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
+        view = NSView(frame: NSRect(x: 0, y: 0, width: 420, height: 360))
         view.autoresizingMask = [.width, .height]
     }
 
@@ -364,8 +365,14 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
         let iconRow = makeRow(label: l("qa.icon"))
         iconField = makeTextField(placeholder: "SF Symbol name, e.g. terminal.fill")
         iconField.stringValue = action.icon
+        iconField.delegate = self
         iconRow.addArrangedSubview(iconField)
         formStack.addArrangedSubview(iconRow)
+
+        let iconPickerRow = makeRow(label: "")
+        let iconPicker = makeIconPicker()
+        iconPickerRow.addArrangedSubview(iconPicker)
+        formStack.addArrangedSubview(iconPickerRow)
 
         // Kind
         let kindRow = makeRow(label: l("qa.kind"))
@@ -448,6 +455,8 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
 
             btnRow.widthAnchor.constraint(equalTo: formStack.widthAnchor)
         ])
+
+        updateSelectedIconButton()
     }
 
     private func updateTargetPlaceholder() {
@@ -484,14 +493,84 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
         return row
     }
 
-    private func makeTextField(placeholder: String) -> NSTextField {
-        let tf = NSTextField()
+    private func makeTextField(placeholder: String) -> PasteFriendlyTextField {
+        let tf = PasteFriendlyTextField()
         tf.translatesAutoresizingMaskIntoConstraints = false
         tf.placeholderString = placeholder
         tf.font = .systemFont(ofSize: 13)
         tf.isEditable = true
         tf.isSelectable = true
         return tf
+    }
+
+    private func makeIconPicker() -> NSView {
+        let container = NSStackView()
+        container.orientation = .horizontal
+        container.spacing = 6
+        container.alignment = .centerY
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        for iconName in availableIcons {
+            guard let image = NSImage(systemSymbolName: iconName, accessibilityDescription: iconName) else {
+                continue
+            }
+
+            let btn = NSButton(image: image, target: self, action: #selector(iconPicked(_:)))
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            btn.bezelStyle = .texturedRounded
+            btn.imageScaling = .scaleProportionallyDown
+            btn.toolTip = iconName
+            btn.identifier = NSUserInterfaceItemIdentifier(iconName)
+            btn.contentTintColor = .labelColor
+            btn.setButtonType(.momentaryPushIn)
+            iconButtons.append(btn)
+            container.addArrangedSubview(btn)
+
+            NSLayoutConstraint.activate([
+                btn.widthAnchor.constraint(equalToConstant: 28),
+                btn.heightAnchor.constraint(equalToConstant: 26)
+            ])
+        }
+
+        return container
+    }
+
+    private var availableIcons: [String] {
+        [
+            "app.fill",
+            "terminal.fill",
+            "t.circle.fill",
+            "command",
+            "globe",
+            "link",
+            "bolt.fill",
+            "play.fill",
+            "folder.fill",
+            "doc.text.fill",
+            "gearshape.fill",
+            "sparkles"
+        ]
+    }
+
+    @objc private func iconPicked(_ sender: NSButton) {
+        guard let iconName = sender.identifier?.rawValue else { return }
+        iconField.stringValue = iconName
+        updateSelectedIconButton()
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        if obj.object as? NSTextField === iconField {
+            updateSelectedIconButton()
+        }
+    }
+
+    private func updateSelectedIconButton() {
+        let selectedIcon = iconField?.stringValue.trimmingCharacters(in: .whitespaces) ?? ""
+        for button in iconButtons {
+            let isSelected = button.identifier?.rawValue == selectedIcon
+            button.state = isSelected ? .on : .off
+            button.contentTintColor = isSelected ? .controlAccentColor : .labelColor
+        }
     }
 
     @objc private func kindChanged() {
@@ -505,6 +584,7 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
         let currentIcon = iconField?.stringValue.trimmingCharacters(in: .whitespaces) ?? ""
         if currentIcon.isEmpty || currentIcon == "bolt.fill" {
             iconField?.stringValue = defaultIcon(for: kind)
+            updateSelectedIconButton()
         }
     }
 
@@ -577,7 +657,7 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
 
 // MARK: - Drop Target Text Field
 
-final class DropTargetTextField: NSTextField {
+final class DropTargetTextField: PasteFriendlyTextField {
     var onAppDropped: ((String) -> Void)?
 
     override init(frame: NSRect) {
@@ -611,6 +691,38 @@ final class DropTargetTextField: NSTextField {
         guard let urls = pb.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
               let url = urls.first else { return nil }
         return url.pathExtension == "app" ? url : nil
+    }
+}
+
+// MARK: - Paste Friendly Text Field
+
+class PasteFriendlyTextField: NSTextField {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command),
+              let chars = event.charactersIgnoringModifiers?.lowercased() else {
+            return super.performKeyEquivalent(with: event)
+        }
+
+        switch chars {
+        case "x":
+            activeTextEditor()?.cut(self)
+            return true
+        case "c":
+            activeTextEditor()?.copy(self)
+            return true
+        case "v":
+            activeTextEditor()?.paste(self)
+            return true
+        case "a":
+            activeTextEditor()?.selectAll(self)
+            return true
+        default:
+            return super.performKeyEquivalent(with: event)
+        }
+    }
+
+    private func activeTextEditor() -> NSText? {
+        (window?.firstResponder as? NSText) ?? window?.fieldEditor(true, for: self)
     }
 }
 

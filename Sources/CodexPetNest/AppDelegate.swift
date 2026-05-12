@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var nestWindow: NestOverlayWindow!
+    private var mainWindowController: MainWindowController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menuBarController = MenuBarController()
         nestWindow = NestOverlayWindow()
+        mainWindowController = MainWindowController.shared
 
         // Install/Sync built-in nests
         BuiltInNestInstaller.shared.installIfNeeded()
@@ -98,6 +100,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleOpenAction() async {
         await MainActor.run {
             NSApp.activate(ignoringOtherApps: true)
+            SettingsStore.shared.settings.showNest = true
+            SettingsStore.shared.save()
+            NotificationCenter.default.post(name: .toggleNestVisibility, object: true)
+            
             if let window = NSApp.windows.first(where: { $0 is NestOverlayWindow }) {
                 window.makeKeyAndOrderFront(nil)
             }

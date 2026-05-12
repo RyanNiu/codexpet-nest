@@ -1,9 +1,9 @@
 import Foundation
 import AppKit
 
-final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableViewDelegate, NSTableViewDataSource {
+final class OnlinePetMarketplaceViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
     
-    static let shared = OnlinePetMarketplaceWindowController()
+    static let shared = OnlinePetMarketplaceViewController()
     
     private var pets: [PetItem] = []
     private var selectedPet: PetDetail?
@@ -51,27 +51,20 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
 
 
     
-    func show() {
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    override func viewDidLoad() {
+        super.viewDidLoad()
         if pets.isEmpty { loadData() }
     }
     
-    convenience init() {
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 920, height: 620),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = l("market.title")
-        window.center()
-        self.init(window: window)
+    override func loadView() {
+        self.view = NSView()
         setupUI()
     }
     
     private func setupUI() {
-        guard let contentView = window?.contentView else { return }
+        let contentView = self.view
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         
         // Search Bar
         searchField.placeholderString = l("market.search_placeholder")
@@ -87,7 +80,7 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         contentView.addSubview(loadingIndicator)
 
         websiteButton.title = l("menu.open_website")
-        websiteButton.bezelStyle = .inline
+        NestUI.styleSecondaryButton(websiteButton)
         websiteButton.target = self
         websiteButton.action = #selector(openWebsite)
         websiteButton.translatesAutoresizingMaskIntoConstraints = false
@@ -96,13 +89,16 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         // Split View (Manual)
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
-        scrollView.borderType = .bezelBorder
+        scrollView.borderType = .noBorder
+        NestUI.panel(scrollView)
         contentView.addSubview(scrollView)
         
         tableView.delegate = self
         tableView.dataSource = self
         tableView.headerView = nil
-        tableView.rowHeight = 64 // Taller rows for thumbnails
+        tableView.rowHeight = 58
+        tableView.intercellSpacing = NSSize(width: 0, height: 2)
+        tableView.selectionHighlightStyle = .regular
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("PetColumn"))
         tableView.addTableColumn(column)
         scrollView.documentView = tableView
@@ -115,7 +111,7 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         contentView.addSubview(paginationBar)
         
         prevButton.title = l("market.prev")
-        prevButton.bezelStyle = .rounded
+        NestUI.styleSecondaryButton(prevButton)
         prevButton.target = self
         prevButton.action = #selector(prevPage)
         paginationBar.addArrangedSubview(prevButton)
@@ -124,16 +120,18 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         paginationBar.addArrangedSubview(pageLabel)
         
         nextButton.title = l("market.next")
-        nextButton.bezelStyle = .rounded
+        NestUI.styleSecondaryButton(nextButton)
         nextButton.target = self
         nextButton.action = #selector(nextPage)
         paginationBar.addArrangedSubview(nextButton)
         
         detailContainer.translatesAutoresizingMaskIntoConstraints = false
+        NestUI.panel(detailContainer, color: .controlBackgroundColor)
         contentView.addSubview(detailContainer)
         
         // Detail View Layout
         previewView.translatesAutoresizingMaskIntoConstraints = false
+        NestUI.previewSurface(previewView)
         detailContainer.addSubview(previewView)
         
         actionPopup.target = self
@@ -152,6 +150,7 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         
         descriptionLabel.font = .systemFont(ofSize: 13)
         descriptionLabel.textColor = .labelColor
+        descriptionLabel.maximumNumberOfLines = 4
         descriptionLabel.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(descriptionLabel)
         
@@ -160,32 +159,32 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         metaLabel.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(metaLabel)
         
-        tagsLabel.textColor = .systemBlue
+        tagsLabel.textColor = .systemTeal
         tagsLabel.font = .systemFont(ofSize: 11, weight: .medium)
         tagsLabel.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(tagsLabel)
         
         statusLabel.textColor = .secondaryLabelColor
-        statusLabel.font = .systemFont(ofSize: 11)
+        statusLabel.font = .systemFont(ofSize: 11, weight: .medium)
         statusLabel.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(statusLabel)
         
         installButton.title = l("market.install")
-        installButton.bezelStyle = .rounded
+        NestUI.stylePrimaryButton(installButton)
         installButton.target = self
         installButton.action = #selector(installClicked)
         installButton.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(installButton)
         
         settingsButton.title = l("manage.open_codex_settings")
-        settingsButton.bezelStyle = .rounded
+        NestUI.styleSecondaryButton(settingsButton)
         settingsButton.target = self
         settingsButton.action = #selector(openCodexSettings)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
         detailContainer.addSubview(settingsButton)
 
         viewOnWebsiteButton.title = l("market.view_on_website")
-        viewOnWebsiteButton.bezelStyle = .rounded
+        NestUI.styleSecondaryButton(viewOnWebsiteButton)
         viewOnWebsiteButton.target = self
         viewOnWebsiteButton.action = #selector(openSelectedPetWebsite)
         viewOnWebsiteButton.translatesAutoresizingMaskIntoConstraints = false
@@ -193,69 +192,70 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         
         NSLayoutConstraint.activate([
             searchField.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            searchField.widthAnchor.constraint(equalToConstant: 280),
+            searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+            searchField.widthAnchor.constraint(equalToConstant: 300),
             
             loadingIndicator.centerYAnchor.constraint(equalTo: searchField.centerYAnchor),
             loadingIndicator.leadingAnchor.constraint(equalTo: searchField.trailingAnchor, constant: 8),
 
             websiteButton.centerYAnchor.constraint(equalTo: searchField.centerYAnchor),
-            websiteButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            websiteButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
             
-            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 12),
-            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 14),
+            scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
             scrollView.bottomAnchor.constraint(equalTo: paginationBar.topAnchor, constant: -8),
-            scrollView.widthAnchor.constraint(equalToConstant: 280),
+            scrollView.widthAnchor.constraint(equalToConstant: 310),
             
-            paginationBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
+            paginationBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -18),
             paginationBar.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
             paginationBar.heightAnchor.constraint(equalToConstant: 32),
             
             
-            detailContainer.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 12),
+            detailContainer.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 14),
             detailContainer.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 16),
-            detailContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            detailContainer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -16),
+            detailContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -18),
+            detailContainer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -18),
             
-            previewView.topAnchor.constraint(equalTo: detailContainer.topAnchor),
-            previewView.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
-            previewView.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
-            previewView.heightAnchor.constraint(equalToConstant: 280),
+            previewView.topAnchor.constraint(equalTo: detailContainer.topAnchor, constant: 18),
+            previewView.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor, constant: 18),
+            previewView.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor, constant: -18),
+            previewView.heightAnchor.constraint(equalTo: detailContainer.heightAnchor, multiplier: 0.48),
+            previewView.heightAnchor.constraint(greaterThanOrEqualToConstant: 250),
             
             actionPopup.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 12),
             actionPopup.centerXAnchor.constraint(equalTo: detailContainer.centerXAnchor),
             actionPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             
             nameLabel.topAnchor.constraint(equalTo: actionPopup.bottomAnchor, constant: 16),
-            nameLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
-            nameLabel.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            nameLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor, constant: 18),
+            nameLabel.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor, constant: -18),
             
             authorLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 2),
-            authorLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            authorLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             
             descriptionLabel.topAnchor.constraint(equalTo: authorLabel.bottomAnchor, constant: 12),
-            descriptionLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
-            descriptionLabel.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            descriptionLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            descriptionLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
             
             metaLabel.topAnchor.constraint(equalTo: descriptionLabel.bottomAnchor, constant: 12),
-            metaLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            metaLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             
             tagsLabel.topAnchor.constraint(equalTo: metaLabel.bottomAnchor, constant: 6),
-            tagsLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
-            tagsLabel.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            tagsLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            tagsLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
             
             statusLabel.bottomAnchor.constraint(equalTo: installButton.topAnchor, constant: -12),
-            statusLabel.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            statusLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             
             installButton.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
-            installButton.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            installButton.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             installButton.widthAnchor.constraint(equalToConstant: 120),
             
             settingsButton.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
             settingsButton.leadingAnchor.constraint(equalTo: installButton.trailingAnchor, constant: 12),
 
             viewOnWebsiteButton.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
-            viewOnWebsiteButton.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor)
+            viewOnWebsiteButton.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor)
         ])
         
         detailContainer.isHidden = true
@@ -534,8 +534,8 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
             imgView.imageScaling = .scaleProportionallyUpOrDown
             imgView.translatesAutoresizingMaskIntoConstraints = false
             imgView.wantsLayer = true
-            imgView.layer?.cornerRadius = 4
-            imgView.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.05).cgColor
+            imgView.layer?.cornerRadius = 6
+            imgView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
             cell?.addSubview(imgView)
             cell?.imageView = imgView
             
@@ -550,26 +550,40 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
             authorField.textColor = .secondaryLabelColor
             authorField.translatesAutoresizingMaskIntoConstraints = false
             cell?.addSubview(authorField)
+
+            let metaField = NSTextField(labelWithString: "")
+            metaField.font = .systemFont(ofSize: 10)
+            metaField.textColor = .tertiaryLabelColor
+            metaField.translatesAutoresizingMaskIntoConstraints = false
+            cell?.addSubview(metaField)
             
             NSLayoutConstraint.activate([
-                imgView.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 4),
+                imgView.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
                 imgView.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
-                imgView.widthAnchor.constraint(equalToConstant: 48),
-                imgView.heightAnchor.constraint(equalToConstant: 48),
+                imgView.widthAnchor.constraint(equalToConstant: 44),
+                imgView.heightAnchor.constraint(equalToConstant: 44),
                 
-                nameField.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 12),
-                nameField.leadingAnchor.constraint(equalTo: imgView.trailingAnchor, constant: 8),
-                nameField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
+                nameField.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 8),
+                nameField.leadingAnchor.constraint(equalTo: imgView.trailingAnchor, constant: 10),
+                nameField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
                 
                 authorField.topAnchor.constraint(equalTo: nameField.bottomAnchor, constant: 2),
-                authorField.leadingAnchor.constraint(equalTo: imgView.trailingAnchor, constant: 8),
-                authorField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4)
+                authorField.leadingAnchor.constraint(equalTo: nameField.leadingAnchor),
+                authorField.trailingAnchor.constraint(equalTo: nameField.trailingAnchor),
+
+                metaField.topAnchor.constraint(equalTo: authorField.bottomAnchor, constant: 1),
+                metaField.leadingAnchor.constraint(equalTo: nameField.leadingAnchor),
+                metaField.trailingAnchor.constraint(equalTo: nameField.trailingAnchor)
             ])
         }
         
         cell?.textField?.stringValue = pet.name
-        if let authorField = cell?.subviews.compactMap({ $0 as? NSTextField }).last {
-            authorField.stringValue = pet.author
+        let labels = cell?.subviews.compactMap({ $0 as? NSTextField }) ?? []
+        if labels.count > 1 {
+            labels[1].stringValue = pet.author
+        }
+        if labels.count > 2 {
+            labels[2].stringValue = "v\(pet.version)"
         }
         
         // Async load thumbnail with caching
@@ -643,6 +657,3 @@ final class OnlinePetMarketplaceWindowController: NSWindowController, NSTableVie
         }
     }
 }
-
-
-
