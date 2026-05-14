@@ -5,10 +5,12 @@ import Foundation
 struct DesktopVersionResponse: Codable, Equatable {
     let platform: String
     let latestVersion: String
+    let buildVersion: String
     let downloadUrl: String?
     let sha256: String?
     let releaseNotesUrl: String?
     let minimumSupportedVersion: String
+    let minimumSystemVersion: String
 }
 
 // MARK: - API DTOs (Data Transfer Objects for codexpet.xyz)

@@ -92,9 +92,7 @@ final class UsageLimitReader {
     private let authPath: String
     
     init() {
-        self.codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"]
-            ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".codex").path
+        self.codexHome = CodexHomeResolver.resolve().path
         self.authPath = (codexHome as NSString).appendingPathComponent("auth.json")
     }
     

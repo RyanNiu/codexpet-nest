@@ -20,13 +20,15 @@ final class LocalNestManagerViewController: NSViewController, NSTableViewDataSou
     private func setupUI() {
         let contentView = self.view
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        contentView.layer?.backgroundColor = NestUI.contentBackground.cgColor
+
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .noBorder
-        NestUI.panel(scrollView)
+        scrollView.drawsBackground = false
+
         
         tableView = NSTableView()
         tableView.headerView = nil
@@ -87,13 +89,15 @@ final class LocalNestManagerViewController: NSViewController, NSTableViewDataSou
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let view = NSTableCellView()
         view.identifier = NSUserInterfaceItemIdentifier("NestCell")
-        NestUI.panel(view, color: .controlBackgroundColor)
+        NestUI.panel(view, color: NestUI.panelBackground)
+
 
         let iconView = NSImageView()
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.wantsLayer = true
         iconView.layer?.cornerRadius = 6
-        iconView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        iconView.layer?.backgroundColor = NestUI.previewBackground.cgColor
+
         iconView.layer?.masksToBounds = true
         iconView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(iconView)

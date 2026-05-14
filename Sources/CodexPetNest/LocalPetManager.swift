@@ -44,9 +44,7 @@ final class LocalPetManager: ObservableObject {
     private let appSupportDir: URL
 
     private init() {
-        let home = ProcessInfo.processInfo.environment["CODEX_HOME"]
-            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codex").path
-        codexHome = URL(fileURLWithPath: home)
+        codexHome = CodexHomeResolver.resolve(fileManager: fileManager)
         petsDir = codexHome.appendingPathComponent("pets")
         globalStateURL = codexHome.appendingPathComponent(".codex-global-state.json")
 

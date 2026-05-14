@@ -42,12 +42,14 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 520))
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        view.layer?.backgroundColor = NestUI.contentBackground.cgColor
+
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .noBorder
-        NestUI.panel(scrollView)
+        scrollView.drawsBackground = false
+
         
         tableView.headerView = nil
         tableView.dataSource = self
@@ -61,8 +63,9 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         view.addSubview(scrollView)
         
         detailView.translatesAutoresizingMaskIntoConstraints = false
-        NestUI.panel(detailView, color: .controlBackgroundColor)
+        NestUI.panel(detailView, color: NestUI.panelBackground)
         view.addSubview(detailView)
+
         
         setupDetailView()
         
@@ -99,20 +102,21 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         view.addSubview(emptyLabel)
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
             scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
-            scrollView.widthAnchor.constraint(equalToConstant: 250),
+            scrollView.widthAnchor.constraint(equalToConstant: 260),
 
-            detailView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 16),
-            detailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            detailView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 12),
+            detailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
             detailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
             detailView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
 
-            bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
+            bottomBar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
             bottomBar.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
             bottomBar.heightAnchor.constraint(equalToConstant: 32),
+
 
             emptyLabel.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
             emptyLabel.centerYAnchor.constraint(equalTo: scrollView.centerYAnchor),
@@ -173,48 +177,51 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         detailView.addSubview(uninstallBtn)
 
         NSLayoutConstraint.activate([
-            previewView.topAnchor.constraint(equalTo: detailView.topAnchor, constant: 18),
-            previewView.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 18),
-            previewView.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -18),
-            previewView.heightAnchor.constraint(greaterThanOrEqualToConstant: 210),
-            previewView.heightAnchor.constraint(equalTo: detailView.heightAnchor, multiplier: 0.48),
+            previewView.topAnchor.constraint(equalTo: detailView.topAnchor, constant: 20),
+            previewView.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 20),
+            previewView.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -20),
+            previewView.heightAnchor.constraint(greaterThanOrEqualToConstant: 180),
+            previewView.heightAnchor.constraint(equalTo: detailView.heightAnchor, multiplier: 0.42),
 
-            actionPopup.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 10),
+            actionPopup.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 12),
             actionPopup.centerXAnchor.constraint(equalTo: previewView.centerXAnchor),
-            actionPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 160),
+            actionPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 140),
 
-            nameLabel.topAnchor.constraint(equalTo: actionPopup.bottomAnchor, constant: 16),
-            nameLabel.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 18),
-            nameLabel.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -18),
+            nameLabel.topAnchor.constraint(equalTo: actionPopup.bottomAnchor, constant: 18),
+            nameLabel.leadingAnchor.constraint(equalTo: detailView.leadingAnchor, constant: 24),
+            nameLabel.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -24),
 
-            idLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 3),
+            idLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
             idLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             idLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
 
-            statusBadge.topAnchor.constraint(equalTo: idLabel.bottomAnchor, constant: 10),
+            statusBadge.topAnchor.constraint(equalTo: idLabel.bottomAnchor, constant: 12),
             statusBadge.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             statusBadge.heightAnchor.constraint(equalToConstant: 22),
-            statusBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 58),
+            statusBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 64),
 
             sourceBadge.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor),
             sourceBadge.leadingAnchor.constraint(equalTo: statusBadge.trailingAnchor, constant: 8),
             sourceBadge.heightAnchor.constraint(equalToConstant: 22),
-            sourceBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 58),
+            sourceBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 64),
 
             statusLabel.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor),
             statusLabel.leadingAnchor.constraint(equalTo: sourceBadge.trailingAnchor, constant: 10),
             statusLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
 
-            descLabel.topAnchor.constraint(equalTo: statusBadge.bottomAnchor, constant: 12),
+            descLabel.topAnchor.constraint(equalTo: statusBadge.bottomAnchor, constant: 14),
             descLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             descLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
 
-            openFinderBtn.bottomAnchor.constraint(equalTo: detailView.bottomAnchor, constant: -18),
+            openFinderBtn.bottomAnchor.constraint(equalTo: detailView.bottomAnchor, constant: -20),
             openFinderBtn.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
+            openFinderBtn.heightAnchor.constraint(equalToConstant: 32),
 
             uninstallBtn.centerYAnchor.constraint(equalTo: openFinderBtn.centerYAnchor),
-            uninstallBtn.leadingAnchor.constraint(equalTo: openFinderBtn.trailingAnchor, constant: 10)
+            uninstallBtn.leadingAnchor.constraint(equalTo: openFinderBtn.trailingAnchor, constant: 10),
+            uninstallBtn.heightAnchor.constraint(equalToConstant: 32)
         ])
+
     }
 
     func refresh() {
@@ -444,7 +451,8 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
             imgView.translatesAutoresizingMaskIntoConstraints = false
             imgView.wantsLayer = true
             imgView.layer?.cornerRadius = 6
-            imgView.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+            imgView.layer?.backgroundColor = NestUI.previewBackground.cgColor
+
             cell?.addSubview(imgView)
             cell?.imageView = imgView
             

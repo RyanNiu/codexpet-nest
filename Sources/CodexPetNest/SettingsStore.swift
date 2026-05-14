@@ -16,6 +16,11 @@ struct Settings: Codable, Equatable {
     var managedPetIds: [String] = []
     var activeNestId: String = "capacity-orbit-nest"
     var hoverOnlyNestIds: Set<String> = []
+    
+    // Analytics
+    var sentAppInstall: Bool = false
+    var lastLaunchEventDate: String? // YYYY-MM-DD
+    var lastSeenVersion: String?
 }
 
 final class SettingsStore {

@@ -80,9 +80,7 @@ final class PackageManager {
         nestsDir = supportDir.appendingPathComponent("nests")
         tempDir = supportDir.appendingPathComponent("tmp")
 
-        let codexHomeEnv = ProcessInfo.processInfo.environment["CODEX_HOME"]
-            ?? home.appendingPathComponent(".codex").path
-        codexPetsDir = URL(fileURLWithPath: codexHomeEnv).appendingPathComponent("pets")
+        codexPetsDir = CodexHomeResolver.resolve(fileManager: fileManager).appendingPathComponent("pets")
 
         try? fileManager.createDirectory(at: internalPetsDir, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: nestsDir, withIntermediateDirectories: true)
@@ -101,8 +99,13 @@ final class PackageManager {
     }
 
     func installPet(id: String) async throws {
-        let meta = try await api.getPetDownload(id: id)
-        try await downloadAndInstall(downloadURL: meta.url, expectedSHA256: meta.sha256, type: .pet)
+        do {
+            let meta = try await api.getPetDownload(id: id)
+            try await downloadAndInstall(downloadURL: meta.url, expectedSHA256: meta.sha256, type: .pet)
+        } catch {
+            await AppAnalytics.shared.report(eventName: "pet_install_failed", metadata: ["id": id, "error": error.localizedDescription])
+            throw error
+        }
     }
 
     func installLocalPet(zipURL: URL) async throws {
@@ -116,8 +119,13 @@ final class PackageManager {
     }
 
     func installNest(id: String) async throws {
-        let meta = try await api.getNestDownload(id: id)
-        try await downloadAndInstall(downloadURL: meta.url, expectedSHA256: meta.sha256, type: .nest)
+        do {
+            let meta = try await api.getNestDownload(id: id)
+            try await downloadAndInstall(downloadURL: meta.url, expectedSHA256: meta.sha256, type: .nest)
+        } catch {
+            await AppAnalytics.shared.report(eventName: "nest_install_failed", metadata: ["id": id, "error": error.localizedDescription])
+            throw error
+        }
     }
 
     /// Download and validate a pet from the platform API without installing it yet.
@@ -212,8 +220,10 @@ final class PackageManager {
                 SettingsStore.shared.save()
             }
             LocalPetManager.shared.refresh()
+            await AppAnalytics.shared.report(eventName: "pet_install_success", metadata: ["id": manifest.id])
         } else if type == .nest {
             LocalNestManager.shared.refresh()
+            await AppAnalytics.shared.report(eventName: "nest_install_success", metadata: ["id": manifest.id])
         }
     }
 
@@ -674,38 +684,7 @@ final class PackageManager {
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
 
-    // MARK: - UI Helpers
 
-    @MainActor
-    static func showOverwritePrompt(name: String, id: String) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = "Pet Already Installed"
-        alert.informativeText = "A pet named \"\(name)\" is already installed. Overwrite it?"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "Overwrite")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    @MainActor
-    static func showInstallError(_ error: Error) {
-        let alert = NSAlert()
-        alert.messageText = "Install Failed"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
-    @MainActor
-    static func showInstallSuccess(name: String) {
-        let alert = NSAlert()
-        alert.messageText = "Pet Installed"
-        alert.informativeText = "\(name) is ready in your nest."
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
 }
 
 struct PreparedPackageInstall {

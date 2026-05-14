@@ -38,6 +38,9 @@ final class QuickActionsConfigWindowController: NSWindowController, NSTableViewD
 
     private func setupUI() {
         guard let contentView = window?.contentView else { return }
+        contentView.wantsLayer = true
+        contentView.layer?.backgroundColor = NestUI.contentBackground.cgColor
+
 
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -69,14 +72,19 @@ final class QuickActionsConfigWindowController: NSWindowController, NSTableViewD
         bottomBar.alignment = .centerY
 
         let addBtn = NSButton(title: l("qa.add"), target: self, action: #selector(addAction))
-        addBtn.bezelStyle = .rounded
-
         let editBtn = NSButton(title: l("qa.edit"), target: self, action: #selector(editAction))
         let deleteBtn = NSButton(title: l("qa.delete"), target: self, action: #selector(deleteAction))
         let upBtn = NSButton(title: l("qa.up"), target: self, action: #selector(moveActionUp))
         let downBtn = NSButton(title: l("qa.down"), target: self, action: #selector(moveActionDown))
-
         let refreshBtn = NSButton(title: l("manage.refresh"), target: self, action: #selector(refreshFromStore))
+
+        NestUI.stylePrimaryButton(addBtn)
+        NestUI.styleSecondaryButton(editBtn)
+        NestUI.styleSecondaryButton(deleteBtn)
+        NestUI.styleSecondaryButton(upBtn)
+        NestUI.styleSecondaryButton(downBtn)
+        NestUI.styleSecondaryButton(refreshBtn)
+
 
         bottomBar.addArrangedSubview(addBtn)
         bottomBar.addArrangedSubview(editBtn)
@@ -436,8 +444,12 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
 
         let cancelBtn = NSButton(title: l("cancel"), target: self, action: #selector(cancel))
         let saveBtn = NSButton(title: isNew ? l("qa.add") : l("qa.save_btn"), target: self, action: #selector(save))
-        saveBtn.bezelStyle = .rounded
+        
+        NestUI.styleSecondaryButton(cancelBtn)
+        NestUI.stylePrimaryButton(saveBtn)
+        
         saveBtn.keyEquivalent = "\r"
+
 
         btnRow.addArrangedSubview(NSView())
         btnRow.addArrangedSubview(cancelBtn)
@@ -517,7 +529,7 @@ final class QuickActionEditForm: NSViewController, NSTextFieldDelegate {
 
             let btn = NSButton(image: image, target: self, action: #selector(iconPicked(_:)))
             btn.translatesAutoresizingMaskIntoConstraints = false
-            btn.bezelStyle = .texturedRounded
+            btn.bezelStyle = .regularSquare
             btn.imageScaling = .scaleProportionallyDown
             btn.toolTip = iconName
             btn.identifier = NSUserInterfaceItemIdentifier(iconName)

@@ -26,10 +26,7 @@ final class PetPositionReader {
     private let stateURL: URL
 
     init() {
-        let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"]
-            ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".codex").path
-        stateURL = URL(fileURLWithPath: codexHome)
+        stateURL = CodexHomeResolver.resolve()
             .appendingPathComponent(".codex-global-state.json")
     }
 

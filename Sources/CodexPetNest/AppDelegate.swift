@@ -1,9 +1,12 @@
 import AppKit
+import Sparkle
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var nestWindow: NestOverlayWindow!
     private var mainWindowController: MainWindowController!
+    public var updaterController: SPUStandardUpdaterController!
+    private var updaterStarted = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
@@ -52,7 +55,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             handleInstallURL(url)
         }
 
-        // Task { await checkVersionOnLaunch() }
+        #if !DEBUG
+        AppAnalytics.shared.trackLaunch()
+        #endif
+        
+        updaterController = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
+    }
+
+    func checkForUpdatesManually(_ sender: Any?) {
+        if !updaterStarted {
+            updaterController.startUpdater()
+            updaterStarted = true
+        }
+
+        updaterController.updater.automaticallyChecksForUpdates = false
+        updaterController.updater.automaticallyDownloadsUpdates = false
+        updaterController.checkForUpdates(sender)
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -132,18 +150,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             if PackageManager.shared.isPetInstalled(id: prepared.manifest.id) {
                 let overwrite = await MainActor.run {
-                    PackageManager.showOverwritePrompt(name: prepared.manifest.name, id: prepared.manifest.id)
+                    PackageUI.showOverwritePrompt(name: prepared.manifest.name, id: prepared.manifest.id)
                 }
                 guard overwrite else { return }
             }
 
             try await PackageManager.shared.installPreparedPet(prepared)
             await MainActor.run {
-                PackageManager.showInstallSuccess(name: name)
+                PackageUI.showInstallSuccess(name: name)
             }
         } catch {
             await MainActor.run {
-                PackageManager.showInstallError(error)
+                PackageUI.showInstallError(error)
             }
         }
     }
@@ -182,28 +200,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.runModal()
     }
 
+    // Manual check logic is now handled by Sparkle
+    @available(*, deprecated, message: "Use Sparkle updaterController instead")
     private func checkVersionOnLaunch() async {
-        let current = "0.1.0"
-        do {
-            let version = try await CodexPetAPI.shared.getVersion()
-            guard version.latestVersion != current else { return }
-
-            await MainActor.run {
-                let alert = NSAlert()
-                alert.messageText = "Update Available"
-                alert.informativeText = "CodexPet Nest \(version.latestVersion) is available (you have \(current)).\n\nDownload from:\n\(version.downloadUrl ?? "https://codexpet.xyz")"
-                alert.alertStyle = .informational
-                alert.addButton(withTitle: "Open Download")
-                alert.addButton(withTitle: "Later")
-                if alert.runModal() == .alertFirstButtonReturn {
-                    if let urlStr = version.downloadUrl, let url = URL(string: urlStr) {
-                        NSWorkspace.shared.open(url)
-                    }
-                }
-            }
-        } catch {
-            // Silently ignore version check failures on launch
-        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -212,6 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func handleOpenSettings() {
         SettingsWindowController.shared.show()
+    }
+
+    var nestOverlayWindow: NestOverlayWindow? {
+        NSApp.windows.first(where: { $0 is NestOverlayWindow }) as? NestOverlayWindow
     }
 }
 

@@ -3,12 +3,14 @@ import AppKit
 enum QuickActionRunnerError: Error, LocalizedError {
     case appNotFound(String)
     case shortcutFailed(String)
+    case terminalFailed(String)
     case terminalRejected
 
     var errorDescription: String? {
         switch self {
         case .appNotFound(let path): return "Application not found: \(path)"
         case .shortcutFailed(let msg): return "Shortcut failed: \(msg)"
+        case .terminalFailed(let msg): return "Terminal action failed: \(msg)"
         case .terminalRejected: return "Terminal command was cancelled"
         }
     }
@@ -124,7 +126,7 @@ final class QuickActionRunner {
             }
             if let error = error {
                 let message = (error[NSAppleScript.errorMessage] as? String) ?? "Unknown error"
-                continuation.resume(throwing: QuickActionRunnerError.shortcutFailed(message))
+                continuation.resume(throwing: QuickActionRunnerError.terminalFailed(message))
             } else {
                 continuation.resume()
             }

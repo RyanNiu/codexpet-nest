@@ -54,8 +54,10 @@ final class NestInstallService {
         do {
             try await installFromToken(token)
         } catch let error as NestInstallError {
+            await AppAnalytics.shared.report(eventName: "nest_install_failed", metadata: ["error": error.localizedDescription])
             await showError(error)
         } catch {
+            await AppAnalytics.shared.report(eventName: "nest_install_failed", metadata: ["error": error.localizedDescription])
             await showError(.intentResolveFailed(error.localizedDescription))
         }
     }
@@ -149,6 +151,7 @@ final class NestInstallService {
             LocalNestManager.shared.refresh()
             LocalNestManager.shared.applyNest(id: manifest.id)
         }
+        await AppAnalytics.shared.report(eventName: "nest_install_success", metadata: ["id": manifest.id])
     }
 
     // MARK: - Helpers

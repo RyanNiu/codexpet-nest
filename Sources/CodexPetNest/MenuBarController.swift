@@ -92,21 +92,8 @@ extension MenuActionTarget {
     }
 
     @objc func checkForUpdates() {
-        let current = "0.1.0"
-        Task {
-            do {
-                let version = try await CodexPetAPI.shared.getVersion()
-                guard version.latestVersion != current else {
-                    await showAlert(title: l("alert.up_to_date.title"), message: l("alert.up_to_date.message", current))
-                    return
-                }
-                await showAlert(
-                    title: l("alert.update_available.title"),
-                    message: l("alert.update_available.message", version.latestVersion, version.downloadUrl ?? "https://codexpet.xyz")
-                )
-            } catch {
-                await showAlert(title: l("alert.update_failed.title"), message: error.localizedDescription)
-            }
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.checkForUpdatesManually(nil)
         }
     }
 
@@ -135,8 +122,7 @@ extension MenuActionTarget {
     }
 
     @objc func browseNests() {
-        MainWindowController.shared.show()
-        NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "nestManager", title: l("menu.manage_nests"), iconName: "house", isCategory: false)])
+        OnlineNestMarketplaceWindowController.shared.show()
     }
 
     @objc func uploadPet() {

@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>0.1.3</string>
 	<key>CFBundleVersion</key>
-	<string>0.1.0</string>
+	<string>13</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>LSMinimumSystemVersion</key>
@@ -32,6 +32,8 @@
 	<string>FSL-1.1-MIT. Converts to MIT on 2028-05-06. Copyright (c) 2026 Ryan Niu.</string>
 	<key>CFBundleIconFile</key>
 	<string>CodexPetNest</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>We need permission to run commands in Terminal via Quick Actions.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -43,5 +45,17 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUFeedURL</key>
+	<string>https://codexpet.xyz/appcast/codexpet-nest.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>/fpwDcLXjTudfbtxoRSNhm/irAIxpUT53e8ZkcomnDc=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

@@ -28,6 +28,8 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     
     override func loadView() {
         self.view = NSView()
+        self.view.wantsLayer = true
+        self.view.layer?.backgroundColor = NestUI.sidebarBackground.cgColor
         
         scrollView.documentView = outlineView
         scrollView.hasVerticalScroller = false // Hide vertical scroller
@@ -48,7 +50,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         
         // Settings Button
         settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        settingsButton.bezelStyle = .recessed
+        settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
         settingsButton.target = self
         settingsButton.action = #selector(settingsClicked(_:))
@@ -75,6 +77,11 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     @objc private func settingsClicked(_ sender: NSButton) {
         let menu = NSMenu()
         menu.addItem(withTitle: "升级", action: #selector(upgradeClicked), keyEquivalent: "")
+        menu.addItem(NSMenuItem.separator())
+        let versionItem = NSMenuItem(title: "版本 \(AppVersion.fullVersionString)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: l("menu.quit"), action: #selector(quitClicked), keyEquivalent: "q")
         
         let p = NSPoint(x: 0, y: sender.frame.height + 5)
@@ -103,7 +110,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
         if item == nil { return menuItems[index] }
-        return ""
+        return "" // Not reachable as isItemExpandable is false
     }
     
     // MARK: - NSOutlineViewDelegate
@@ -121,7 +128,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
             view?.addSubview(imageView)
             view?.imageView = imageView
             
-            let textField = NSTextField(labelWithString: sidebarItem.title)
+            let textField = NSTextField(labelWithString: "")
             textField.font = .systemFont(ofSize: 13, weight: .regular)
             textField.translatesAutoresizingMaskIntoConstraints = false
             view?.addSubview(textField)
@@ -140,20 +147,17 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         }
         
         view?.textField?.stringValue = sidebarItem.title
+        view?.textField?.textColor = .labelColor
         
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        let config = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
         if let image = NSImage(systemSymbolName: sidebarItem.iconName, accessibilityDescription: nil) {
             view?.imageView?.image = image.withSymbolConfiguration(config)
         }
         
-        // Color optimization as per Figure 2
-        if sidebarItem.id == "marketplace" {
-            view?.imageView?.contentTintColor = NSColor.systemGreen
-        } else {
-            view?.imageView?.contentTintColor = .secondaryLabelColor
-        }
+        view?.imageView?.contentTintColor = .secondaryLabelColor
         
         return view
+
     }
     
     func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {

@@ -13,7 +13,8 @@ final class MainContentViewController: NSViewController {
     override func loadView() {
         self.view = NSView()
         self.view.wantsLayer = true
-        self.view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        self.view.layer?.backgroundColor = NestUI.contentBackground.cgColor
+
         
         contentContainer.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(contentContainer)
@@ -37,7 +38,7 @@ final class MainContentViewController: NSViewController {
         case "nestManager":
             newVC = localNestManagerVC
         default:
-            // Fallback for others currently
+            print("[MainContentViewController] Unrecognized sidebar item id: \(item.id). Falling back to marketplace.")
             newVC = onlineMarketplaceVC
         }
         
