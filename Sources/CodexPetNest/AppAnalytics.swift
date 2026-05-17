@@ -9,11 +9,12 @@ final class AppAnalytics {
     private let session: URLSession
     
     private var installId: String {
-        if let id = KeychainManager.shared.getToken(key: "install_id") {
+        let key = "analytics_install_id"
+        if let id = UserDefaults.standard.string(forKey: key) {
             return id
         }
         let id = UUID().uuidString
-        _ = KeychainManager.shared.storeToken(id, key: "install_id")
+        UserDefaults.standard.set(id, forKey: key)
         return id
     }
     

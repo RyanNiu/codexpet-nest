@@ -19,6 +19,8 @@ struct RuntimeManifest: Codable {
     let schemaVersion: String
     let layout: RuntimeLayoutRef
     let assets: [RuntimeAsset]
+    let metricCatalog: RuntimeRegistryRef?
+    let componentRegistry: RuntimeRegistryRef?
     let componentRegistryVersion: String?
     let expiresAt: String?
 }
@@ -35,6 +37,12 @@ struct RuntimeAsset: Codable {
     let sha256: String
     let contentType: String
     let size: Int
+}
+
+struct RuntimeRegistryRef: Codable {
+    let version: String
+    let url: String
+    let sha256: String
 }
 
 // MARK: - Install Complete

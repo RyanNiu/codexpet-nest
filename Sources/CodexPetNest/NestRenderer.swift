@@ -13,6 +13,8 @@ final class NestRenderer: NSView {
     private var elementRenderers: [NestElementRenderer] = []
     private var componentViews: [NSView] = []
     private var componentRenderers: [OfficialComponentRenderer] = []
+    private var primitiveRenderers: [RendererPrimitive] = []
+    private var componentRegistry: ComponentRegistry?
 
     private struct RenderItem {
         let view: NSView
@@ -202,6 +204,10 @@ final class NestRenderer: NSView {
         for v in componentViews { v.removeFromSuperview() }
         componentViews.removeAll()
         componentRenderers.removeAll()
+        primitiveRenderers.removeAll()
+
+        // Load component registry and metric catalog from cache
+        loadRegistries()
 
         renderItems.removeAll()
 
@@ -212,9 +218,10 @@ final class NestRenderer: NSView {
             // Collect image layers (zIndex default 0)
             for layer in nest.layout.layers {
                 let imgURL = nest.rootURL.appendingPathComponent(layer.src)
-                if let image = NSImage(contentsOf: imgURL) {
-                    let iv = NSImageView(image: image)
+                let iv = NSImageView()
+                if AnimatedImageSupport.load(contentsOf: imgURL, into: iv) {
                     iv.imageScaling = .scaleAxesIndependently
+                    AnimatedImageSupport.configure(iv)
                     if let opacity = layer.opacity {
                         iv.alphaValue = CGFloat(opacity)
                     }
@@ -234,8 +241,9 @@ final class NestRenderer: NSView {
                     case .staticImage(let e):
                         let iv = NSImageView()
                         iv.imageScaling = .scaleAxesIndependently
+                        AnimatedImageSupport.configure(iv)
                         let imgURL = nest.rootURL.appendingPathComponent(e.src)
-                        iv.image = NSImage(contentsOf: imgURL)
+                        _ = AnimatedImageSupport.load(contentsOf: imgURL, into: iv)
                         view = iv
                     case .variantImage(let e):
                         let r = VariantImageRenderer(element: e, rootURL: nest.rootURL)
@@ -263,12 +271,21 @@ final class NestRenderer: NSView {
             // Collect official components (zIndex default 30)
             if let components = nest.layout.components {
                 for component in components {
-                    guard let view = OfficialComponentFactory.createView(for: component, rootURL: nest.rootURL, nestId: nest.id) else {
+                    guard let view = OfficialComponentFactory.createView(
+                        for: component,
+                        registry: componentRegistry,
+                        snapshot: metricSnapshot,
+                        rootURL: nest.rootURL,
+                        nestId: nest.id
+                    ) else {
                         continue
                     }
                     componentViews.append(view)
                     if let renderer = view as? OfficialComponentRenderer {
                         componentRenderers.append(renderer)
+                    }
+                    if let primitive = view as? RendererPrimitive {
+                        primitiveRenderers.append(primitive)
                     }
                     items.append(RenderItem(view: view, frame: component.frame, zIndex: component.zIndex ?? 30, order: orderCounter))
                     orderCounter += 1
@@ -302,18 +319,55 @@ final class NestRenderer: NSView {
         }
     }
     
+    private func loadRegistries() {
+        guard let nest = activeNest else {
+            MetricCatalog.shared.resetToBuiltIns()
+            return
+        }
+
+        // Load metric catalog FIRST if present; reset to built-ins otherwise
+        let metricURL = nest.rootURL.appendingPathComponent("metric-catalog.json")
+        if FileManager.default.fileExists(atPath: metricURL.path) {
+            MetricCatalog.shared.load(from: metricURL)
+        } else {
+            MetricCatalog.shared.resetToBuiltIns()
+        }
+
+        // Then load and validate component registry
+        let registryURL = nest.rootURL.appendingPathComponent("component-registry.json")
+        if FileManager.default.fileExists(atPath: registryURL.path),
+           let data = try? Data(contentsOf: registryURL),
+           let reg = try? JSONDecoder().decode(ComponentRegistry.self, from: data) {
+            // Validate but don't block — log warning on failure
+            do {
+                try reg.validate(currentVersion: AppVersion.currentMarketingVersion)
+                self.componentRegistry = reg
+            } catch {
+                #if DEBUG
+                print("[NestRenderer] Registry validation warning: \(error.localizedDescription)")
+                #endif
+                self.componentRegistry = nil
+            }
+        } else {
+            self.componentRegistry = nil
+        }
+    }
+
     private func refreshMetrics() {
         var newSnapshot = MetricSnapshot()
         for provider in metricProviders {
             newSnapshot = newSnapshot.merging(provider.snapshot())
         }
         self.metricSnapshot = newSnapshot
-        
+
         for renderer in elementRenderers {
             renderer.update(snapshot: self.metricSnapshot)
         }
         for renderer in componentRenderers {
             renderer.update(snapshot: self.metricSnapshot)
+        }
+        for primitive in primitiveRenderers {
+            primitive.update(snapshot: self.metricSnapshot)
         }
     }
     

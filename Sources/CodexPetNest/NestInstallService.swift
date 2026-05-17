@@ -9,9 +9,11 @@ enum NestInstallError: Error, LocalizedError {
     case manifestDownloadFailed(String)
     case layoutDownloadFailed(String)
     case assetDownloadFailed(String)
+    case registryDownloadFailed(String)
     case sha256Mismatch(file: String, expected: String, actual: String)
     case saveFailed(String)
     case completeFailed(String)
+    case unsupportedRuntime(String)
 
     var errorDescription: String? {
         switch self {
@@ -21,10 +23,12 @@ enum NestInstallError: Error, LocalizedError {
         case .manifestDownloadFailed(let msg): return "Failed to download runtime manifest: \(msg)"
         case .layoutDownloadFailed(let msg): return "Failed to download layout: \(msg)"
         case .assetDownloadFailed(let msg): return "Failed to download asset: \(msg)"
+        case .registryDownloadFailed(let msg): return "Failed to download registry: \(msg)"
         case .sha256Mismatch(let file, let exp, let act):
             return "SHA256 mismatch for \(file). Expected \(exp.prefix(16))..., got \(act.prefix(16))..."
         case .saveFailed(let msg): return "Failed to save files: \(msg)"
         case .completeFailed(let msg): return "Failed to complete install: \(msg)"
+        case .unsupportedRuntime(let msg): return "Unsupported runtime: \(msg)"
         }
     }
 }
@@ -105,6 +109,50 @@ final class NestInstallService {
             assetDataMap[asset.path] = data
         }
 
+        // Step 4.5: Download and verify metric catalog / component registry
+        if let metricCatalogRef = manifest.metricCatalog {
+            let data = try await api.downloadRegistry(url: metricCatalogRef.url)
+            let hash = sha256Hex(data)
+            guard hash == metricCatalogRef.sha256 else {
+                throw NestInstallError.sha256Mismatch(
+                    file: "metric-catalog.json",
+                    expected: metricCatalogRef.sha256,
+                    actual: hash
+                )
+            }
+            assetDataMap["metric-catalog.json"] = data
+        }
+
+            // Load metric catalog first if present, so component validation can reference new metrics
+            if let metricData = assetDataMap["metric-catalog.json"] {
+                let tempURL = fileManager.temporaryDirectory.appendingPathComponent("metric-catalog-\(UUID().uuidString).json")
+                try metricData.write(to: tempURL)
+                MetricCatalog.shared.load(from: tempURL)
+                try? fileManager.removeItem(at: tempURL)
+            }
+
+            if let componentRegistryRef = manifest.componentRegistry {
+                let data = try await api.downloadRegistry(url: componentRegistryRef.url)
+                let hash = sha256Hex(data)
+                guard hash == componentRegistryRef.sha256 else {
+                    throw NestInstallError.sha256Mismatch(
+                        file: "component-registry.json",
+                        expected: componentRegistryRef.sha256,
+                        actual: hash
+                    )
+                }
+
+                // Validate registry before saving
+                do {
+                    let registry = try JSONDecoder().decode(ComponentRegistry.self, from: data)
+                    try registry.validate(currentVersion: AppVersion.currentMarketingVersion)
+                } catch {
+                    throw NestInstallError.registryDownloadFailed("Component registry validation failed: \(error.localizedDescription)")
+                }
+
+                assetDataMap["component-registry.json"] = data
+            }
+
         // Step 5: Save to versioned cache directory
         let nestDir = nestsDir.appendingPathComponent("\(manifest.id)/\(manifest.version)")
         if fileManager.fileExists(atPath: nestDir.path) {
@@ -119,24 +167,29 @@ final class NestInstallService {
         // Save layout
         try layoutData.write(to: nestDir.appendingPathComponent("nest.json"), options: .atomic)
 
-        // Save assets
+        // Save registries and assets
         let assetsDir = nestDir.appendingPathComponent("assets")
         try fileManager.createDirectory(at: assetsDir, withIntermediateDirectories: true)
 
         for (path, data) in assetDataMap {
-            let relativePath: String
-            if path.hasPrefix("assets/") {
-                relativePath = String(path.dropFirst("assets/".count))
+            if path == "metric-catalog.json" || path == "component-registry.json" {
+                // Registry files go in the version root
+                try data.write(to: nestDir.appendingPathComponent(path), options: .atomic)
             } else {
-                relativePath = path
-            }
+                let relativePath: String
+                if path.hasPrefix("assets/") {
+                    relativePath = String(path.dropFirst("assets/".count))
+                } else {
+                    relativePath = path
+                }
 
-            let fileURL = assetsDir.appendingPathComponent(relativePath)
-            let parentDir = fileURL.deletingLastPathComponent()
-            if !fileManager.fileExists(atPath: parentDir.path) {
-                try fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
+                let fileURL = assetsDir.appendingPathComponent(relativePath)
+                let parentDir = fileURL.deletingLastPathComponent()
+                if !fileManager.fileExists(atPath: parentDir.path) {
+                    try fileManager.createDirectory(at: parentDir, withIntermediateDirectories: true)
+                }
+                try data.write(to: fileURL, options: .atomic)
             }
-            try data.write(to: fileURL, options: .atomic)
         }
 
         // Step 6: Complete install (server must confirm before local activation)

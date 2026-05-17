@@ -20,6 +20,7 @@ final class VariantImageRenderer: NSView, NestElementRenderer {
     
     private func setupUI() {
         imageView.imageScaling = .scaleAxesIndependently
+        AnimatedImageSupport.configure(imageView)
         imageView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(imageView)
         
@@ -45,8 +46,7 @@ final class VariantImageRenderer: NSView, NestElementRenderer {
         }
         
         if let assetPath = element.variants[key] ?? element.fallback {
-            if let image = loadImage(assetPath) {
-                imageView.image = image
+            if loadImage(assetPath) {
                 isHidden = false
             } else {
                 isHidden = true
@@ -56,17 +56,24 @@ final class VariantImageRenderer: NSView, NestElementRenderer {
         }
     }
     
-    private func loadImage(_ path: String) -> NSImage? {
+    private func loadImage(_ path: String) -> Bool {
         if let cached = imageCache[path] {
-            return cached
+            AnimatedImageSupport.stopAnimation(on: imageView)
+            imageView.image = cached
+            return true
         }
         
         let url = rootURL.appendingPathComponent(path)
+        if url.pathExtension.lowercased() == "gif" {
+            return AnimatedImageSupport.load(contentsOf: url, into: imageView)
+        }
+
         if let image = NSImage(contentsOf: url) {
             imageCache[path] = image
-            return image
+            imageView.image = image
+            return true
         }
         
-        return nil
+        return false
     }
 }

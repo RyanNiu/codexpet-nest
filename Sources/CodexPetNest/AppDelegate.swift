@@ -5,8 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController!
     private var nestWindow: NestOverlayWindow!
     private var mainWindowController: MainWindowController!
-    public var updaterController: SPUStandardUpdaterController!
-    private var updaterStarted = false
+    private var updaterController: SPUStandardUpdaterController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
@@ -23,6 +22,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         #endif
+
+        disableAutomaticUpdates()
 
         NSApp.setActivationPolicy(.accessory)
 
@@ -58,19 +59,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if !DEBUG
         AppAnalytics.shared.trackLaunch()
         #endif
-        
-        updaterController = SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil)
     }
 
     func checkForUpdatesManually(_ sender: Any?) {
-        if !updaterStarted {
-            updaterController.startUpdater()
-            updaterStarted = true
+        if updaterController == nil {
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: nil,
+                userDriverDelegate: nil
+            )
         }
 
+        guard let updaterController else { return }
         updaterController.updater.automaticallyChecksForUpdates = false
         updaterController.updater.automaticallyDownloadsUpdates = false
         updaterController.checkForUpdates(sender)
+    }
+
+    private func disableAutomaticUpdates() {
+        let defaults = UserDefaults.standard
+        defaults.set(false, forKey: "SUEnableAutomaticChecks")
+        defaults.set(false, forKey: "SUAutomaticallyUpdate")
+        defaults.set(false, forKey: "SUAllowsAutomaticUpdates")
+        defaults.synchronize()
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {

@@ -17,6 +17,11 @@ struct AppVersion {
         return AppBuildInfo.buildVersion
     }
 
+    /// Integer build number for runtime compatibility checks.
+    static var build: Int {
+        Int(currentBuildVersion) ?? 0
+    }
+
     static var fullVersionString: String {
         "\(currentMarketingVersion) (\(currentBuildVersion))"
     }

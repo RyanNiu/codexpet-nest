@@ -580,9 +580,9 @@ final class CodexPetAPI {
         guard let u = URL(string: resolved) else { throw CodexPetAPIError.invalidURL }
         var req = URLRequest(url: u)
         req.setValue("application/json", forHTTPHeaderField: "Accept")
-        var manifest = try await perform(req) as RuntimeManifest
+        let manifest = try await perform(req) as RuntimeManifest
 
-        manifest = RuntimeManifest(
+        return RuntimeManifest(
             type: manifest.type,
             id: manifest.id,
             version: manifest.version,
@@ -602,10 +602,27 @@ final class CodexPetAPI {
                     size: asset.size
                 )
             },
+            metricCatalog: manifest.metricCatalog.map {
+                RuntimeRegistryRef(
+                    version: $0.version,
+                    url: normalizeURL($0.url, baseURL: baseURL),
+                    sha256: $0.sha256
+                )
+            },
+            componentRegistry: manifest.componentRegistry.map {
+                RuntimeRegistryRef(
+                    version: $0.version,
+                    url: normalizeURL($0.url, baseURL: baseURL),
+                    sha256: $0.sha256
+                )
+            },
             componentRegistryVersion: manifest.componentRegistryVersion,
             expiresAt: manifest.expiresAt
         )
-        return manifest
+    }
+
+    func downloadRegistry(url: String) async throws -> Data {
+        return try await downloadData(url: url, accept: "application/json")
     }
 
     func downloadLayout(url: String) async throws -> Data {

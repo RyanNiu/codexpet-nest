@@ -625,10 +625,10 @@ final class PackageManager {
             throw PackageManagerError.pathTraversal("\(label): \(path)")
         }
         
-        // Extension must be png or webp
+        // Extension must be a supported image format.
         let ext = fileURL.pathExtension.lowercased()
-        guard ext == "png" || ext == "webp" else {
-            throw PackageManagerError.invalidManifest("\(label) has unsupported extension: \(ext). Only png/webp allowed.")
+        guard ext == "png" || ext == "webp" || ext == "gif" else {
+            throw PackageManagerError.invalidManifest("\(label) has unsupported extension: \(ext). Only png/webp/gif allowed.")
         }
         
         if !FileManager.default.fileExists(atPath: fileURL.path) {
