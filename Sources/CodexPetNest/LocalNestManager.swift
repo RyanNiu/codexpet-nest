@@ -145,6 +145,11 @@ final class LocalNestManager {
             runtimeManifest = nil
         }
 
+        let rawPreviewPath = runtimeManifest?.preview ?? "assets/preview.png"
+        let previewFileURL = safeRelativeFileURL(root: rootURL, path: rawPreviewPath)
+        let previewURL = previewFileURL.flatMap { fileManager.fileExists(atPath: $0.path) ? $0 : nil }
+        let previewPath = previewURL == nil ? nil : rawPreviewPath
+
         let packageManifest = PackageManifest(
             type: PackageType.nest.rawValue,
             schemaVersion: layout.schemaVersion,
@@ -155,7 +160,7 @@ final class LocalNestManager {
             description: "",
             manifest: nil,
             spritesheet: nil,
-            preview: nil,
+            preview: previewPath,
             license: "MIT",
             tags: nil,
             layout: "nest.json",
@@ -168,9 +173,24 @@ final class LocalNestManager {
             manifest: packageManifest,
             layout: layout,
             rootURL: rootURL,
-            previewURL: nil,
+            previewURL: previewURL,
             installedVersion: version
         )
+    }
+
+    private func safeRelativeFileURL(root: URL, path: String) -> URL? {
+        if path.contains("..") || path.hasPrefix("/") || path.contains("://") {
+            return nil
+        }
+
+        let rootURL = root.standardizedFileURL
+        let fileURL = rootURL.appendingPathComponent(path).standardizedFileURL
+
+        guard fileURL.path == rootURL.path || fileURL.path.hasPrefix(rootURL.path + "/") else {
+            return nil
+        }
+
+        return fileURL
     }
 
     func applyNest(id: String) {

@@ -617,7 +617,8 @@ final class CodexPetAPI {
                 )
             },
             componentRegistryVersion: manifest.componentRegistryVersion,
-            expiresAt: manifest.expiresAt
+            expiresAt: manifest.expiresAt,
+            preview: manifest.preview
         )
     }
 

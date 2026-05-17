@@ -23,6 +23,7 @@ struct RuntimeManifest: Codable {
     let componentRegistry: RuntimeRegistryRef?
     let componentRegistryVersion: String?
     let expiresAt: String?
+    let preview: String?
 }
 
 struct RuntimeLayoutRef: Codable {
