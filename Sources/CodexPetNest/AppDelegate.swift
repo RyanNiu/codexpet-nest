@@ -27,16 +27,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
+        // Init pet runtime coordinator early
+        _ = PetRuntimeCoordinator.shared
+
         menuBarController = MenuBarController()
         nestWindow = NestOverlayWindow()
         mainWindowController = MainWindowController.shared
 
-        // Install/Sync built-in nests
+        // Install/Sync built-in nests and default pet
         BuiltInNestInstaller.shared.installIfNeeded()
+        BuiltInPetInstaller.shared.installIfNeeded()
 
         if SettingsStore.shared.settings.showNest {
             nestWindow.orderFront(nil)
         }
+
+        // Apply the coordinator's resolved mode, not just the persisted preference.
+        PetRuntimeCoordinator.shared.activateCurrentMode()
 
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleOpenSettings),
@@ -74,6 +81,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updaterController.updater.automaticallyChecksForUpdates = false
         updaterController.updater.automaticallyDownloadsUpdates = false
         updaterController.checkForUpdates(sender)
+    }
+
+    func rebuildMenuBarMenu() {
+        menuBarController?.rebuildMenu()
     }
 
     private func disableAutomaticUpdates() {

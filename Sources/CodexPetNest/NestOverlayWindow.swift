@@ -2,7 +2,6 @@ import AppKit
 
 final class NestOverlayWindow: NSPanel, NSWindowDelegate {
     private let renderer: NestRenderer
-    private let reader = PetPositionReader()
     private var pollTimer: Timer?
     private var hoverTimer: Timer?
     private var lastVisible = false
@@ -10,6 +9,10 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
     private let gap: CGFloat = 8
     private var currentSize: NSSize { renderer.currentCanvasSize }
+
+    private var positionProvider: PetPositionProvider {
+        PetRuntimeCoordinator.shared.currentPositionProvider
+    }
 
     init() {
         let initialSize = NSSize(width: 220, height: 72)
@@ -49,10 +52,15 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         pollTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
             self?.poll()
         }
-        
+
         hoverTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
             self?.updateHoverState()
         }
+    }
+
+    private func updateModeLabel() {
+        let isStandalone = PetRuntimeCoordinator.shared.activeMode == .standalone
+        modeLabel?.isHidden = !isStandalone
     }
 
     private func updateHoverState() {
@@ -85,22 +93,105 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
     private func buildMenu() -> NSMenu {
         let menu = NSMenu(title: "CodexPet Nest")
-        
-        let showHideTitle = SettingsStore.shared.settings.showNest ? l("menu.hide_nest") : l("menu.show_nest")
-        menu.addItem(NSMenuItem(title: showHideTitle, action: #selector(MenuActionTarget.toggleShowNest), keyEquivalent: ""))
-        
-        menu.addItem(NSMenuItem(title: l("context.manage_nests"), action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: l("context.manage_pets"), action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: ""))
-        
+        let codexAvailable = PetRuntimeCoordinator.shared.isCodexAvailable()
+        let isStandalone = PetRuntimeCoordinator.shared.activeMode == .standalone
 
-        
-        // Only set target for items intended for MenuActionTarget
+        // Show/Hide nest
+        let showNest = SettingsStore.shared.settings.showNest
+        let nestTitle = showNest ? l("menu.hide_nest") : l("menu.show_nest")
+        menu.addItem(actionItem(title: nestTitle, action: #selector(MenuActionTarget.toggleShowNest)))
+
+        // Show/Hide pet
+        if isStandalone {
+            let showPet = SettingsStore.shared.settings.showStandalonePet
+            let petTitle = showPet ? "隐藏宠物" : "显示宠物"
+            menu.addItem(actionItem(title: petTitle, action: #selector(MenuActionTarget.toggleShowStandalonePet)))
+        } else {
+            let disabledItem = NSMenuItem(title: "显示/隐藏宠物", action: nil, keyEquivalent: "")
+            disabledItem.isEnabled = false
+            menu.addItem(disabledItem)
+        }
+
+        menu.addItem(.separator())
+
+        // Pet mode submenu
+        let modeItem = NSMenuItem(title: "宠物模式", action: nil, keyEquivalent: "")
+        let modeMenu = NSMenu(title: "")
+        let codexItem = NSMenuItem(
+            title: codexAvailable ? "跟随 Codex 宠物" : "跟随 Codex 宠物（Codex 未运行）",
+            action: codexAvailable ? #selector(MenuActionTarget.switchToCodexFollow) : nil,
+            keyEquivalent: ""
+        )
+        codexItem.state = isStandalone ? .off : .on
+        codexItem.isEnabled = codexAvailable
+        modeMenu.addItem(codexItem)
+
+        let standaloneItem = NSMenuItem(
+            title: "独立桌面宠物",
+            action: #selector(MenuActionTarget.switchToStandalone),
+            keyEquivalent: ""
+        )
+        standaloneItem.state = isStandalone ? .on : .off
+        modeMenu.addItem(standaloneItem)
+        modeItem.submenu = modeMenu
+        menu.addItem(modeItem)
+
+        // Free roam (only for standalone)
+        let roamItem = NSMenuItem(
+            title: "自由活动",
+            action: isStandalone ? #selector(MenuActionTarget.toggleFreeRoam) : nil,
+            keyEquivalent: ""
+        )
+        roamItem.state = SettingsStore.shared.settings.freeRoamEnabled ? .on : .off
+        roamItem.isEnabled = isStandalone
+        menu.addItem(roamItem)
+
+        // Always on top
+        let topItem = NSMenuItem(
+            title: "总在最前",
+            action: #selector(MenuActionTarget.togglePetAlwaysOnTop),
+            keyEquivalent: ""
+        )
+        topItem.state = SettingsStore.shared.settings.petAlwaysOnTop ? .on : .off
+        menu.addItem(topItem)
+
+        // Click through
+        let clickItem = NSMenuItem(
+            title: "点击穿透",
+            action: #selector(MenuActionTarget.togglePetClickThrough),
+            keyEquivalent: ""
+        )
+        clickItem.state = SettingsStore.shared.settings.petClickThrough ? .on : .off
+        menu.addItem(clickItem)
+
+        menu.addItem(.separator())
+
+        menu.addItem(actionItem(title: l("context.manage_pets"), action: #selector(MenuActionTarget.manageLocalPets)))
+        menu.addItem(actionItem(title: l("context.manage_nests"), action: #selector(MenuActionTarget.manageLocalNests)))
+
+        menu.addItem(.separator())
+
+        let quitItem = NSMenuItem(title: l("menu.quit"), action: #selector(NSApplication.terminate), keyEquivalent: "q")
+        quitItem.target = NSApp
+        menu.addItem(quitItem)
+
+        assignActionTargets(in: menu)
+        return menu
+    }
+
+    private func actionItem(title: String, action: Selector) -> NSMenuItem {
+        NSMenuItem(title: title, action: action, keyEquivalent: "")
+    }
+
+    private func assignActionTargets(in menu: NSMenu) {
         for item in menu.items {
-            if item.action != #selector(NSApplication.terminate) {
+            if let submenu = item.submenu {
+                assignActionTargets(in: submenu)
+            }
+            if item.action != nil && item.action != #selector(NSApplication.terminate) {
                 item.target = MenuActionTarget.shared
             }
         }
-        return menu
     }
 
     private func poll() {
@@ -111,7 +202,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        let result = reader.read()
+        let result = positionProvider.read()
 
         switch result {
         case .unavailable, .closed:
@@ -155,6 +246,10 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         }
         NotificationCenter.default.addObserver(forName: .nestSizeChanged, object: nil, queue: .main) { [weak self] _ in
             self?.updateSizeAndPosition()
+        }
+        NotificationCenter.default.addObserver(forName: .petRuntimeModeChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.updateModeLabel()
+            self?.poll()
         }
     }
 

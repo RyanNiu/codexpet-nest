@@ -24,13 +24,66 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     func rebuildMenu() {
         let menu = NSMenu(title: "CodexPet Nest")
         menu.delegate = self
+        let codexAvailable = PetRuntimeCoordinator.shared.isCodexAvailable()
+        let isStandalone = PetRuntimeCoordinator.shared.activeMode == .standalone
 
+        // Show/Hide nest
         let showHideTitle = SettingsStore.shared.settings.showNest
             ? l("menu.hide_nest")
             : l("menu.show_nest")
         menu.addItem(NSMenuItem(title: showHideTitle,
                                  action: #selector(MenuActionTarget.toggleShowNest),
                                  keyEquivalent: ""))
+
+        // Show/Hide pet
+        if isStandalone {
+            let showPet = SettingsStore.shared.settings.showStandalonePet
+            let petTitle = showPet ? "隐藏宠物" : "显示宠物"
+            menu.addItem(NSMenuItem(title: petTitle,
+                                     action: #selector(MenuActionTarget.toggleShowStandalonePet),
+                                     keyEquivalent: ""))
+        } else {
+            let item = NSMenuItem(title: "显示/隐藏宠物", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+
+        menu.addItem(.separator())
+
+        // Pet mode submenu
+        let modeItem = NSMenuItem(title: "宠物模式", action: nil, keyEquivalent: "")
+        let modeMenu = NSMenu(title: "")
+        let codexItem = NSMenuItem(
+            title: codexAvailable ? "跟随 Codex 宠物" : "跟随 Codex 宠物（Codex 未运行）",
+            action: codexAvailable ? #selector(MenuActionTarget.switchToCodexFollow) : nil,
+            keyEquivalent: ""
+        )
+        codexItem.state = isStandalone ? .off : .on
+        codexItem.isEnabled = codexAvailable
+        modeMenu.addItem(codexItem)
+
+        let standaloneItem = NSMenuItem(
+            title: "独立桌面宠物",
+            action: #selector(MenuActionTarget.switchToStandalone),
+            keyEquivalent: ""
+        )
+        standaloneItem.state = isStandalone ? .on : .off
+        modeMenu.addItem(standaloneItem)
+        modeItem.submenu = modeMenu
+        menu.addItem(modeItem)
+
+        // Free roam
+        let roamItem = NSMenuItem(
+            title: "自由活动",
+            action: isStandalone ? #selector(MenuActionTarget.toggleFreeRoam) : nil,
+            keyEquivalent: ""
+        )
+        roamItem.state = SettingsStore.shared.settings.freeRoamEnabled ? .on : .off
+        roamItem.isEnabled = isStandalone
+        menu.addItem(roamItem)
+
+        menu.addItem(.separator())
+
         menu.addItem(withTitle: l("menu.manage_pets"), action: #selector(MenuActionTarget.manageLocalPets), keyEquivalent: "m")
         menu.addItem(withTitle: l("menu.manage_nests"), action: #selector(MenuActionTarget.manageLocalNests), keyEquivalent: "")
 
@@ -39,15 +92,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem(title: l("menu.open_marketplace"),
                                  action: #selector(MenuActionTarget.browsePets),
                                  keyEquivalent: ","))
-        
-        // let nestMarketItem = NSMenuItem(title: "Online Nest Marketplace (Coming Soon)",
-        //                                  action: #selector(MenuActionTarget.browseNests),
-        //                                  keyEquivalent: "")
-        // nestMarketItem.isEnabled = false
-        // menu.addItem(nestMarketItem)
 
         menu.addItem(.separator())
-        
+
         menu.addItem(NSMenuItem(title: l("menu.open_website"),
                                  action: #selector(MenuActionTarget.openWebsite),
                                  keyEquivalent: ""))
@@ -64,12 +111,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         quitItem.target = NSApp
         menu.addItem(quitItem)
 
-        menu.items.forEach { 
-            if $0.action != #selector(NSApplication.terminate(_:)) {
-                $0.target = MenuActionTarget.shared 
+        assignActionTargets(in: menu)
+        statusItem.menu = menu
+    }
+
+    private func assignActionTargets(in menu: NSMenu) {
+        for item in menu.items {
+            if let submenu = item.submenu {
+                assignActionTargets(in: submenu)
+            }
+            if item.action != nil && item.action != #selector(NSApplication.terminate(_:)) {
+                item.target = MenuActionTarget.shared
             }
         }
-        statusItem.menu = menu
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -190,13 +244,84 @@ extension MenuActionTarget {
         SettingsStore.shared.settings.activeNestId = "capacity-orbit-nest"
         SettingsStore.shared.settings.showNest = true
         SettingsStore.shared.save()
-        
+
         NotificationCenter.default.post(name: .activeNestChanged, object: nil)
         NotificationCenter.default.post(name: .settingsChanged, object: nil)
         NotificationCenter.default.post(name: .nestSizeChanged, object: nil)
-        
+
         if !SettingsStore.shared.settings.showNest {
             for w in NSApp.windows where w is NestOverlayWindow { w.orderFront(nil) }
         }
+    }
+
+    // MARK: - Pet runtime mode actions
+
+    @objc func switchToCodexFollow() {
+        PetRuntimeCoordinator.shared.switchToCodexFollow()
+        refreshAllMenus()
+    }
+
+    @objc func switchToStandalone() {
+        PetRuntimeCoordinator.shared.switchToStandalone()
+        refreshAllMenus()
+    }
+
+    @objc func toggleFreeRoam() {
+        let newValue = !SettingsStore.shared.settings.freeRoamEnabled
+        SettingsStore.shared.settings.freeRoamEnabled = newValue
+        SettingsStore.shared.save()
+
+        // Refresh standalone pet window behavior
+        for w in NSApp.windows where w is StandalonePetWindow {
+            (w as? StandalonePetWindow)?.reloadBehavior()
+        }
+
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        refreshAllMenus()
+    }
+
+    @objc func toggleShowStandalonePet() {
+        let newValue = !SettingsStore.shared.settings.showStandalonePet
+        SettingsStore.shared.settings.showStandalonePet = newValue
+        SettingsStore.shared.save()
+
+        if newValue {
+            PetRuntimeCoordinator.shared.showStandalonePet()
+        } else {
+            PetRuntimeCoordinator.shared.hideStandalonePet()
+        }
+
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        refreshAllMenus()
+    }
+
+    @objc func togglePetAlwaysOnTop() {
+        let newValue = !SettingsStore.shared.settings.petAlwaysOnTop
+        SettingsStore.shared.settings.petAlwaysOnTop = newValue
+        SettingsStore.shared.save()
+
+        for w in NSApp.windows where w is StandalonePetWindow {
+            (w as? StandalonePetWindow)?.reloadSettings()
+        }
+
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        refreshAllMenus()
+    }
+
+    @objc func togglePetClickThrough() {
+        let newValue = !SettingsStore.shared.settings.petClickThrough
+        SettingsStore.shared.settings.petClickThrough = newValue
+        SettingsStore.shared.save()
+
+        for w in NSApp.windows where w is StandalonePetWindow {
+            (w as? StandalonePetWindow)?.reloadSettings()
+        }
+
+        NotificationCenter.default.post(name: .settingsChanged, object: nil)
+        refreshAllMenus()
+    }
+
+    private func refreshAllMenus() {
+        (NSApp.delegate as? AppDelegate)?.rebuildMenuBarMenu()
     }
 }

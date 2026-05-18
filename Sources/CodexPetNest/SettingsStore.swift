@@ -5,6 +5,18 @@ struct PomodoroSettings: Codable, Equatable {
     var breakMinutes: Int = 5
 }
 
+enum PetRuntimeMode: String, Codable, Equatable {
+    case codexFollow
+    case standalone
+}
+
+struct SavedRect: Codable, Equatable {
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+}
+
 struct Settings: Codable, Equatable {
     var showNest: Bool = true
     var launchAtLogin: Bool = false
@@ -16,11 +28,32 @@ struct Settings: Codable, Equatable {
     var managedPetIds: [String] = []
     var activeNestId: String = "capacity-orbit-nest"
     var hoverOnlyNestIds: Set<String> = []
-    
+
+    // Pet runtime mode
+    var preferredPetRuntimeMode: PetRuntimeMode? = nil
+    var activeStandalonePetId: String?
+    var standalonePetFrame: SavedRect?
+    var freeRoamEnabled: Bool = false
+    var petAlwaysOnTop: Bool = false
+    var petClickThrough: Bool = false
+    var randomBehaviorEnabled: Bool = true
+    var randomBehaviorIntensity: String = "medium"
+    var showStandalonePet: Bool = true
+
+    // Whether standalone mode was entered via auto-degradation (Codex unavailable)
+    var standaloneWasAutoDegraded: Bool = false
+
     // Analytics
     var sentAppInstall: Bool = false
     var lastLaunchEventDate: String? // YYYY-MM-DD
     var lastSeenVersion: String?
+
+    var activePetRuntimeMode: PetRuntimeMode {
+        guard let preferred = preferredPetRuntimeMode else {
+            return .codexFollow
+        }
+        return preferred
+    }
 }
 
 final class SettingsStore {

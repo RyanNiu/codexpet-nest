@@ -63,6 +63,7 @@ app: release
 	@mkdir -p "$(APP_BUNDLE)/Contents/MacOS"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Frameworks"
 	@mkdir -p "$(APP_BUNDLE)/Contents/Resources/BundledNests"
+	@mkdir -p "$(APP_BUNDLE)/Contents/Resources/BundledPets"
 	@cp $(EXEC_RELEASE) "$(APP_BUNDLE)/Contents/MacOS/CodexPetNest"
 	@cp -R $(FRAMEWORKS_SRC)/Sparkle.framework "$(APP_BUNDLE)/Contents/Frameworks/"
 	@cp Resources/Info.plist "$(APP_BUNDLE)/Contents/Info.plist"
@@ -72,6 +73,7 @@ app: release
 	@cp -R docs/test-fixtures/nests-v1.1/legend-status-nest "$(APP_BUNDLE)/Contents/Resources/BundledNests/"
 	@cp -R docs/test-fixtures/nests-v1.1/window-desk-nest "$(APP_BUNDLE)/Contents/Resources/BundledNests/"
 	@cp -R docs/test-fixtures/nests-v1.1/quick-actions-demo-nest "$(APP_BUNDLE)/Contents/Resources/BundledNests/"
+	@cp -R docs/test-fixtures/builtin-default-pet "$(APP_BUNDLE)/Contents/Resources/BundledPets/builtin-default"
 	@chmod +x "$(APP_BUNDLE)/Contents/MacOS/CodexPetNest"
 	@if [ "$(CODESIGN_IDENTITY)" = "-" ]; then \
 		echo "Warning: Using ad-hoc signing. This is not suitable for distribution."; \
@@ -90,6 +92,8 @@ dev: $(EXEC_DEBUG)
 	@cp -R docs/test-fixtures/nests-v1.1/legend-status-nest .build/BundledNests/
 	@cp -R docs/test-fixtures/nests-v1.1/window-desk-nest .build/BundledNests/
 	@cp -R docs/test-fixtures/nests-v1.1/quick-actions-demo-nest .build/BundledNests/
+	@mkdir -p .build/BundledPets
+	@cp -R docs/test-fixtures/builtin-default-pet .build/BundledPets/builtin-default
 	@echo "Starting app with console logging..."
 	./$(EXEC_DEBUG)
 

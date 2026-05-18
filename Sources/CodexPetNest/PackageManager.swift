@@ -91,7 +91,8 @@ final class PackageManager {
     // MARK: - Public API
 
     func isPetInstalled(id: String) -> Bool {
-        FileManager.default.fileExists(atPath: codexPetsDir.appendingPathComponent(id).path)
+        FileManager.default.fileExists(atPath: internalPetsDir.appendingPathComponent(id).path)
+            || FileManager.default.fileExists(atPath: codexPetsDir.appendingPathComponent(id).path)
     }
 
     func isNestInstalled(id: String) -> Bool {
@@ -202,7 +203,7 @@ final class PackageManager {
         let (manifest, packageRoot) = try resolvePackageRoot(in: workDir, type: type)
         try validateManifest(manifest, type: type, packageRoot: packageRoot)
 
-        let installDir = (type == .pet ? codexPetsDir : nestsDir).appendingPathComponent(manifest.id)
+        let installDir = (type == .pet ? internalPetsDir : nestsDir).appendingPathComponent(manifest.id)
         try? FileManager.default.removeItem(at: installDir)
         try FileManager.default.createDirectory(at: installDir, withIntermediateDirectories: true)
 

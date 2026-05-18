@@ -23,6 +23,7 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     
     private let openFinderBtn = NSButton(title: l("manage.open_in_finder"), target: nil, action: nil)
     private let uninstallBtn = NSButton(title: l("manage.delete_pet"), target: nil, action: nil)
+    private let enableStandaloneBtn = NSButton(title: "启用", target: nil, action: nil)
     private let browseMarketplaceBtn = NSButton(title: l("manage.add_browse_pets"), target: nil, action: nil)
     private let installBtn = NSButton(title: l("manage.install_local_pet"), target: nil, action: nil)
     private let openCodexSettingsBtn = NSButton(title: l("manage.open_codex_settings"), target: nil, action: nil)
@@ -38,12 +39,33 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
     private var spritesheetImage: NSImage?
     private var spriteDescriptor: SpriteSheetDescriptor?
 
+    private let modeSegment = NSSegmentedControl(labels: ["跟随 Codex 宠物", "独立桌面宠物"], trackingMode: .selectOne, target: nil, action: nil)
+    private let modeStatusLabel = NSTextField(labelWithString: "")
+
 
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 760, height: 520))
         view.wantsLayer = true
         view.layer?.backgroundColor = NestUI.contentBackground.cgColor
 
+        // Mode switching segmented control
+        modeSegment.translatesAutoresizingMaskIntoConstraints = false
+        modeSegment.target = self
+        modeSegment.action = #selector(modeSegmentChanged)
+        modeSegment.segmentStyle = .texturedSquare
+        view.addSubview(modeSegment)
+
+        modeStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        modeStatusLabel.font = .systemFont(ofSize: 11)
+        modeStatusLabel.textColor = .secondaryLabelColor
+        modeStatusLabel.alignment = .center
+        view.addSubview(modeStatusLabel)
+
+        updateModeSegment()
+
+        NotificationCenter.default.addObserver(forName: .petRuntimeModeChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.updateModeSegment()
+        }
 
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
@@ -102,14 +124,21 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         view.addSubview(emptyLabel)
 
         NSLayoutConstraint.activate([
+            modeSegment.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            modeSegment.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            modeSegment.widthAnchor.constraint(greaterThanOrEqualToConstant: 300),
+
+            modeStatusLabel.topAnchor.constraint(equalTo: modeSegment.bottomAnchor, constant: 6),
+            modeStatusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            scrollView.topAnchor.constraint(equalTo: modeStatusLabel.bottomAnchor, constant: 10),
             scrollView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
             scrollView.widthAnchor.constraint(equalToConstant: 260),
 
             detailView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 12),
             detailView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -18),
-            detailView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            detailView.topAnchor.constraint(equalTo: modeStatusLabel.bottomAnchor, constant: 10),
             detailView.bottomAnchor.constraint(equalTo: bottomBar.topAnchor, constant: -14),
 
             bottomBar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 18),
@@ -135,10 +164,17 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
                 self?.updateDetail()
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.addObserver(forName: .petRuntimeModeChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.updateDetail()
+        }
+        NotificationCenter.default.addObserver(forName: .petRuntimeStandalonePetChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.updateDetail()
+        }
     }
 
     private func setupDetailView() {
-        [nameLabel, idLabel, statusLabel, previewView, actionPopup, descLabel, openFinderBtn, uninstallBtn, statusBadge, sourceBadge].forEach {
+        [nameLabel, idLabel, statusLabel, previewView, actionPopup, descLabel, openFinderBtn, uninstallBtn, enableStandaloneBtn, statusBadge, sourceBadge].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
 
@@ -169,12 +205,17 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         openFinderBtn.action = #selector(openInFinder)
         NestUI.styleSecondaryButton(openFinderBtn)
         detailView.addSubview(openFinderBtn)
-        
+
         uninstallBtn.target = self
         uninstallBtn.action = #selector(uninstallPet)
         NestUI.styleSecondaryButton(uninstallBtn)
         uninstallBtn.contentTintColor = .systemRed
         detailView.addSubview(uninstallBtn)
+
+        enableStandaloneBtn.target = self
+        enableStandaloneBtn.action = #selector(enableStandalonePet)
+        NestUI.stylePrimaryButton(enableStandaloneBtn)
+        detailView.addSubview(enableStandaloneBtn)
 
         NSLayoutConstraint.activate([
             previewView.topAnchor.constraint(equalTo: detailView.topAnchor, constant: 20),
@@ -213,6 +254,10 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
             descLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             descLabel.trailingAnchor.constraint(equalTo: nameLabel.trailingAnchor),
 
+            enableStandaloneBtn.bottomAnchor.constraint(equalTo: detailView.bottomAnchor, constant: -20),
+            enableStandaloneBtn.trailingAnchor.constraint(equalTo: detailView.trailingAnchor, constant: -24),
+            enableStandaloneBtn.heightAnchor.constraint(equalToConstant: 32),
+
             openFinderBtn.bottomAnchor.constraint(equalTo: detailView.bottomAnchor, constant: -20),
             openFinderBtn.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
             openFinderBtn.heightAnchor.constraint(equalToConstant: 32),
@@ -222,6 +267,32 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
             uninstallBtn.heightAnchor.constraint(equalToConstant: 32)
         ])
 
+    }
+
+    // MARK: - Mode switching
+
+    @objc private func modeSegmentChanged() {
+        if modeSegment.selectedSegment == 0 {
+            PetRuntimeCoordinator.shared.switchToCodexFollow()
+        } else {
+            PetRuntimeCoordinator.shared.switchToStandalone()
+        }
+        updateModeSegment()
+    }
+
+    private func updateModeSegment() {
+        let codexAvailable = PetRuntimeCoordinator.shared.isCodexAvailable()
+        let isStandalone = PetRuntimeCoordinator.shared.activeMode == .standalone
+
+        modeSegment.selectedSegment = isStandalone ? 1 : 0
+        modeSegment.setEnabled(codexAvailable, forSegment: 0)
+        modeSegment.setEnabled(true, forSegment: 1)
+
+        if !codexAvailable {
+            modeStatusLabel.stringValue = "Codex 未运行"
+        } else {
+            modeStatusLabel.stringValue = ""
+        }
     }
 
     func refresh() {
@@ -295,6 +366,21 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
         }
         
         uninstallBtn.title = pet.isAppManaged ? l("manage.delete_pet") : l("manage.remove_folder")
+
+        // Update standalone enable button
+        let isStandalone = PetRuntimeCoordinator.shared.activeMode == .standalone
+        let currentStandaloneId = SettingsStore.shared.settings.activeStandalonePetId
+            ?? LocalPetManager.shared.pets.first?.id
+            ?? "builtin-default"
+        let isActive = pet.id == currentStandaloneId
+        enableStandaloneBtn.isEnabled = isStandalone && !isActive
+        if isActive {
+            enableStandaloneBtn.title = "已启用"
+            enableStandaloneBtn.contentTintColor = .secondaryLabelColor
+        } else {
+            enableStandaloneBtn.title = "启用"
+            enableStandaloneBtn.contentTintColor = nil
+        }
     }
     
     @objc private func actionChanged() {
@@ -325,6 +411,14 @@ final class LocalPetManagerViewController: NSViewController, NSTableViewDataSour
 
 
     // MARK: - Actions
+
+    @objc private func enableStandalonePet() {
+        let row = tableView.selectedRow
+        guard row >= 0, row < pets.count else { return }
+        let pet = pets[row]
+        PetRuntimeCoordinator.shared.setStandalonePetId(pet.id)
+        updateDetail()
+    }
 
     @objc private func openMarketplace() {
         NotificationCenter.default.post(name: .sidebarSelectionChanged, object: nil, userInfo: ["item": SidebarItem(id: "marketplace", title: l("menu.open_marketplace"), iconName: "bag", isCategory: false)])

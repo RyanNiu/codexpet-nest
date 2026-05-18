@@ -1,0 +1,19 @@
+{
+    "id": "builtin-default",
+    "displayName": "Default Pet",
+    "description": "A built-in default pet that comes with CodexPet Nest.",
+    "spritesheetPath": "default-spritesheet.png",
+    "preview": "default-spritesheet.png",
+    "frameWidth": 128,
+    "frameHeight": 128,
+    "columns": 8,
+    "rows": 9,
+    "animations": {
+        "idle": {"row": 0, "frames": 8, "fps": 8},
+        "walk-right": {"row": 1, "frames": 8, "fps": 10},
+        "walk-left": {"row": 2, "frames": 8, "fps": 10},
+        "hover": {"row": 3, "frames": 8, "fps": 8},
+        "drag": {"row": 4, "frames": 8, "fps": 8},
+        "special": {"row": 5, "frames": 8, "fps": 8}
+    }
+}
