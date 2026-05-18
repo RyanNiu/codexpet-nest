@@ -266,7 +266,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
                 let originX = petFrame.midX - CGFloat(slotCenterX)
                 let originY = petFrame.midY - CGFloat(slotCenterYFromBottom)
 
-                return clamp(NSRect(x: originX, y: originY, width: size.width, height: size.height))
+                return NSRect(x: originX, y: originY, width: size.width, height: size.height)
             }
         }
 
