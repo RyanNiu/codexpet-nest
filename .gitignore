@@ -1,0 +1,16 @@
+# Node.js / pnpm
+node_modules/
+*.tsbuildinfo
+dist/
+.vite/
+
+# Rust / Cargo
+target/
+**/target/
+
+# Tauri generated
+**/src-tauri/gen/
+
+# IDE
+.DS_Store
+.idea/

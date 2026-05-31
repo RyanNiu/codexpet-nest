@@ -1,0 +1,31 @@
+{
+  "name": "codexpet-nest-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter @codexpet/desktop-tauri dev",
+    "build": "pnpm --filter @codexpet/desktop-tauri build",
+    "typecheck": "pnpm --filter @codexpet/desktop-tauri typecheck",
+    "lint": "pnpm --filter @codexpet/desktop-tauri lint",
+    "format": "prettier --write 'apps/**/*.{ts,tsx,css,json}'",
+    "format:check": "prettier --check 'apps/**/*.{ts,tsx,css,json}'",
+    "test": "pnpm --filter @codexpet/desktop-tauri test",
+    "rust:fmt": "cd apps/desktop-tauri/src-tauri && cargo fmt --check",
+    "rust:clippy": "cd apps/desktop-tauri/src-tauri && cargo clippy --all-targets -- -D warnings",
+    "rust:test": "cd apps/desktop-tauri/src-tauri && cargo test",
+    "rust:build": "cd apps/desktop-tauri/src-tauri && cargo build",
+    "tauri:dev": "pnpm --filter @codexpet/desktop-tauri tauri dev",
+    "tauri:build": "pnpm --filter @codexpet/desktop-tauri tauri build"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  }
+}
