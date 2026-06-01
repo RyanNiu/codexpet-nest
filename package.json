@@ -4,17 +4,18 @@
   "scripts": {
     "dev": "pnpm --filter @codexpet/desktop-tauri dev",
     "build": "pnpm --filter @codexpet/desktop-tauri build",
-    "typecheck": "pnpm --filter @codexpet/desktop-tauri typecheck",
-    "lint": "pnpm --filter @codexpet/desktop-tauri lint",
-    "format": "prettier --write 'apps/**/*.{ts,tsx,css,json}'",
-    "format:check": "prettier --check 'apps/**/*.{ts,tsx,css,json}'",
-    "test": "pnpm --filter @codexpet/desktop-tauri test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "format": "prettier --write 'apps/**/*.{ts,tsx,css,json}' 'packages/**/*.{ts,tsx,css,json}'",
+    "format:check": "prettier --check 'apps/**/*.{ts,tsx,css,json}' 'packages/**/*.{ts,tsx,css,json}'",
+    "test": "pnpm -r --if-present test",
     "rust:fmt": "cd apps/desktop-tauri/src-tauri && cargo fmt --check",
     "rust:clippy": "cd apps/desktop-tauri/src-tauri && cargo clippy --all-targets -- -D warnings",
     "rust:test": "cd apps/desktop-tauri/src-tauri && cargo test",
     "rust:build": "cd apps/desktop-tauri/src-tauri && cargo build",
     "tauri:dev": "pnpm --filter @codexpet/desktop-tauri tauri dev",
-    "tauri:build": "pnpm --filter @codexpet/desktop-tauri tauri build"
+    "tauri:build": "pnpm --filter @codexpet/desktop-tauri tauri build",
+    "tauri:build:app": "pnpm --filter @codexpet/desktop-tauri tauri build --bundles app"
   },
   "engines": {
     "node": ">=20.0.0",

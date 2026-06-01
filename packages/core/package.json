@@ -1,0 +1,21 @@
+{
+  "name": "@codexpet/core",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/ --max-warnings 0",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^25.9.1",
+    "eslint": "^9.0.0",
+    "typescript": "~5.7.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  }
+}
