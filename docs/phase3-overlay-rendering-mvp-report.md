@@ -126,8 +126,8 @@ Current automated test counts:
 
 - `@codexpet/core`: 21 tests
 - `@codexpet/renderer`: 9 tests
-- `@codexpet/desktop-tauri`: 13 tests
-- Total: 43 tests
+- `@codexpet/desktop-tauri`: 14 tests
+- Total: 44 tests
 
 ## Manual Dev Smoke
 

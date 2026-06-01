@@ -79,7 +79,7 @@ describe('OverlayApp', () => {
   it('should receive pointer events on drag bar and start manual fallback drag', async () => {
     vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
       startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),
-    } as ReturnType<typeof getCurrentWebviewWindow>);
+    } as unknown as ReturnType<typeof getCurrentWebviewWindow>);
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
     render(<OverlayApp />);
 
