@@ -55,6 +55,8 @@ beforeEach(async () => {
         return Promise.resolve({ x: 0, y: 0, scale_factor: 1, display_index: 0 });
       case 'show_overlay':
       case 'hide_overlay':
+      case 'reset_overlay_position':
+      case 'resize_overlay_debug':
       case 'set_overlay_click_through':
         return Promise.resolve(undefined);
       default:

@@ -98,7 +98,6 @@ export function OverlayApp() {
             } satisfies React.CSSProperties)
           : { background: 'transparent' }),
       }}
-      data-tauri-drag-region
     >
       {/* Fixed DEBUG OVERLAY label — always visible in dev / overlay context */}
       {isDevOverlay && (
@@ -120,6 +119,32 @@ export function OverlayApp() {
           DEBUG OVERLAY
         </div>
       )}
+
+      <div
+        data-testid="overlay-drag-region"
+        data-tauri-drag-region
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: 92,
+          right: 178,
+          height: 24,
+          zIndex: 25,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 999,
+          border: '1px solid rgba(255,255,255,0.45)',
+          background: 'rgba(0,0,0,0.45)',
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 800,
+          letterSpacing: 0.4,
+          cursor: 'move',
+        }}
+      >
+        Drag Overlay
+      </div>
 
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', gap: 4 }}>
         {builtInNestFixtures.slice(0, 3).map((fixture) => (

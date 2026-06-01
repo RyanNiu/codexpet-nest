@@ -17,6 +17,12 @@ describe('DebugPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide Overlay' }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith('hide_overlay'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Overlay Position' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('reset_overlay_position'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Resize Overlay for Debug' }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('resize_overlay_debug'));
   });
 
   it('shows overlay command errors in the panel', async () => {

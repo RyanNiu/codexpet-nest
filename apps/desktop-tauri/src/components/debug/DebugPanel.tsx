@@ -103,6 +103,18 @@ export function DebugPanel() {
     refreshOverlayVisible();
   }, [refreshOverlayVisible]);
 
+  const resetOverlayPosition = useCallback(() => {
+    invoke('reset_overlay_position')
+      .then(refreshOverlayVisible)
+      .catch((e) => setOverlayControlError(String(e)));
+  }, [refreshOverlayVisible]);
+
+  const resizeOverlayForDebug = useCallback(() => {
+    invoke('resize_overlay_debug')
+      .then(refreshOverlayVisible)
+      .catch((e) => setOverlayControlError(String(e)));
+  }, [refreshOverlayVisible]);
+
   // Auto-fetch on mount
   useEffect(() => {
     fetchCodexState();
@@ -258,6 +270,14 @@ export function DebugPanel() {
           </button>
           <button style={style.button} onClick={handleRefreshOverlayVisible}>
             Refresh Visibility
+          </button>
+        </div>
+        <div style={style.row}>
+          <button style={style.button} onClick={resetOverlayPosition}>
+            Reset Overlay Position
+          </button>
+          <button style={style.button} onClick={resizeOverlayForDebug}>
+            Resize Overlay for Debug
           </button>
         </div>
         {overlayControlError && (

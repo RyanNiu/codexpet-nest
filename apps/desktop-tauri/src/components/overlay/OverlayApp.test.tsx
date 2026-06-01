@@ -44,6 +44,8 @@ describe('OverlayApp', () => {
     expect(screen.getByTestId('debug-overlay-label')).toBeInTheDocument();
     expect(screen.getByTestId('debug-overlay-label')).toHaveTextContent('DEBUG OVERLAY');
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
+    expect(screen.getByTestId('overlay-drag-region')).toHaveAttribute('data-tauri-drag-region');
+    expect(screen.getByText('Drag Overlay')).toBeInTheDocument();
     expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 

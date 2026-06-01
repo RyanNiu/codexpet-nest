@@ -139,6 +139,34 @@ pnpm --filter @codexpet/desktop-tauri tauri dev --config '{"build":{"beforeDevCo
 
 The app compiled and launched successfully; the command ran until the tool timeout terminated the long-lived dev process. No Rust panic or startup error was observed. Visual confirmation of Settings/Overlay requires a human session, but the overlay render path and nest fixture switching are covered by React tests.
 
+## Manual Validation Follow-Up Patch
+
+Manual Phase 3 validation found two issues before Phase 4:
+
+- The overlay window was too small, so the nest render MVP was visually crowded.
+- The overlay could not be dragged because the drag region was not explicit enough for the interactive overlay layout.
+
+Fixes applied:
+
+- Dev/debug overlay window size is now `480x260` logical pixels.
+- Added Rust helpers and commands:
+  - `resize_overlay_debug`
+  - `reset_overlay_position`
+- Settings Debug Panel now exposes:
+  - `Reset Overlay Position`
+  - `Resize Overlay for Debug`
+- Overlay DOM now has an explicit top drag pill labeled `Drag Overlay` with `data-tauri-drag-region`.
+- The root overlay is no longer the drag region, so fixture buttons remain clickable.
+
+Expected manual behavior after the patch:
+
+- With click-through disabled, dragging the `Drag Overlay` top pill moves the overlay.
+- Fixture buttons remain clickable and continue switching fixtures.
+- With click-through enabled, mouse events pass through and dragging is not expected.
+- Disabling click-through restores overlay interactivity and drag behavior.
+- `Reset Overlay Position` returns the overlay to a visible top-right debug position.
+- `Resize Overlay for Debug` reapplies the `480x260` debug size.
+
 ## Not Implemented Yet
 
 - real asset migration

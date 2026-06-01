@@ -109,3 +109,13 @@ pub fn hide_overlay(app: tauri::AppHandle) -> Result<(), String> {
 pub fn is_overlay_visible(app: tauri::AppHandle) -> Result<bool, String> {
     windows::is_overlay_window_visible(&app)
 }
+
+#[tauri::command]
+pub fn reset_overlay_position(app: tauri::AppHandle) -> Result<(), String> {
+    windows::reset_overlay_position_window(&app)
+}
+
+#[tauri::command]
+pub fn resize_overlay_debug(app: tauri::AppHandle) -> Result<(), String> {
+    windows::resize_overlay_debug_window(&app)
+}
