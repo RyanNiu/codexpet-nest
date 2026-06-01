@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { OverlayApp } from './OverlayApp';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import { FALLBACK_CONFIG } from '@/config';
@@ -19,20 +19,20 @@ describe('OverlayApp', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
-  it('should render app name and version when config is loaded', () => {
+  it('should render app name, version, and nest render model when config is loaded', async () => {
     useAppConfigStore.getState().setConfig({
       ...FALLBACK_CONFIG,
       appName: 'CodexPet',
       isDebug: false, // explicitly false to test non-debug path
     });
     render(<OverlayApp />);
-    // Note: Outside DEV/vitest, isDevOverlay is false when isDebug is false
-    //       and no label=overlay param — so only the Nest/version text renders.
-    expect(screen.getByText(/Nest/)).toBeInTheDocument();
+    expect(screen.getByTestId('nest-render-model')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-slot-clock')).toBeInTheDocument();
     expect(screen.getByText(/v0.1.12/)).toBeInTheDocument();
+    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 
-  it('should render debug overlay elements when isDebug is true', () => {
+  it('should render debug overlay elements when isDebug is true', async () => {
     useAppConfigStore.getState().setConfig({
       ...FALLBACK_CONFIG,
       isDebug: true,
@@ -44,9 +44,10 @@ describe('OverlayApp', () => {
     expect(screen.getByTestId('debug-overlay-label')).toBeInTheDocument();
     expect(screen.getByTestId('debug-overlay-label')).toHaveTextContent('DEBUG OVERLAY');
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
+    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 
-  it('should render debug overlay elements in DEV mode even if isDebug is not set', () => {
+  it('should render debug overlay elements in DEV mode even if isDebug is not set', async () => {
     // Simulate Vite DEV mode: isDevOverlay falls back to import.meta.env.DEV.
     useAppConfigStore.getState().setConfig({
       ...FALLBACK_CONFIG,
@@ -57,5 +58,17 @@ describe('OverlayApp', () => {
     // import.meta.env.DEV is true in vitest, so debug elements must render.
     expect(screen.getByTestId('debug-overlay-label')).toBeInTheDocument();
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
+    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+  });
+
+  it('should switch built-in nest fixture in the overlay', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    render(<OverlayApp />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'capacity-orbit' }));
+
+    expect(screen.getByText('capacity-orbit-nest')).toBeInTheDocument();
+    expect(screen.getByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
+    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 });
