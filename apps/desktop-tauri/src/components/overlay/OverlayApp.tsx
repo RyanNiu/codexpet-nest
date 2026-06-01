@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
 import type { OverlayMode } from '@codexpet/core';
@@ -7,11 +9,45 @@ import { useAppConfigStore } from '@/store/appConfigStore';
 import type { CodexStateDebug, ConvertedPosition, ScreenInfo } from '@/store/debugStore';
 import { NestOverlayView } from './NestOverlayView';
 
+interface OverlayPosition {
+  x: number;
+  y: number;
+}
+
+interface DragDiagnostics {
+  mouseDownCount: number;
+  lastMousePosition: string;
+  draggingActive: boolean;
+  dragMode: 'idle' | 'native-attempted' | 'manual-fallback';
+  lastDragError: string | null;
+}
+
+const initialDragDiagnostics: DragDiagnostics = {
+  mouseDownCount: 0,
+  lastMousePosition: 'none',
+  draggingActive: false,
+  dragMode: 'idle',
+  lastDragError: null,
+};
+
 export function OverlayApp() {
   const { config, isLoading } = useAppConfigStore();
   const [selectedNestId, setSelectedNestId] = useState('default');
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('follow-codex');
   const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
+  const [dragDiagnostics, setDragDiagnostics] = useState<DragDiagnostics>(initialDragDiagnostics);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    windowX: number;
+    windowY: number;
+  } | null>(null);
+  const pendingPositionRef = useRef<OverlayPosition | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    writeDragDiagnostics(dragDiagnostics);
+  }, [dragDiagnostics]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -69,6 +105,92 @@ export function OverlayApp() {
     import.meta.env.DEV === true ||
     window.location.search.includes('label=overlay');
 
+  const updateDragDiagnostics = (patch: Partial<DragDiagnostics>) => {
+    setDragDiagnostics((current) => ({ ...current, ...patch }));
+  };
+
+  const flushPendingPosition = () => {
+    animationFrameRef.current = null;
+    const nextPosition = pendingPositionRef.current;
+    if (!nextPosition) return;
+    invoke('set_overlay_position', { x: nextPosition.x, y: nextPosition.y }).catch((error) => {
+      updateDragDiagnostics({ lastDragError: String(error) });
+    });
+  };
+
+  const scheduleOverlayPosition = (position: OverlayPosition) => {
+    pendingPositionRef.current = position;
+    if (animationFrameRef.current !== null) return;
+    animationFrameRef.current = window.requestAnimationFrame(flushPendingPosition);
+  };
+
+  const startManualFallbackDrag = (pointerX: number, pointerY: number) => {
+    invoke<OverlayPosition>('get_overlay_position')
+      .then((position) => {
+        dragStartRef.current = {
+          pointerX,
+          pointerY,
+          windowX: position.x,
+          windowY: position.y,
+        };
+        updateDragDiagnostics({ dragMode: 'manual-fallback' });
+      })
+      .catch((error) => {
+        updateDragDiagnostics({
+          draggingActive: false,
+          lastDragError: `manual drag init failed: ${String(error)}`,
+        });
+      });
+  };
+
+  const handleDragPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const pointerX = event.screenX;
+    const pointerY = event.screenY;
+    const point = `${Math.round(pointerX)}, ${Math.round(pointerY)}`;
+    setDragDiagnostics((current) => ({
+      ...current,
+      mouseDownCount: current.mouseDownCount + 1,
+      lastMousePosition: point,
+      draggingActive: true,
+      dragMode: 'native-attempted',
+      lastDragError: null,
+    }));
+
+    getCurrentWebviewWindow()
+      .startDragging()
+      .catch((error) => {
+        updateDragDiagnostics({ lastDragError: `native startDragging failed: ${String(error)}` });
+        startManualFallbackDrag(pointerX, pointerY);
+      });
+  };
+
+  const handleDragPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const start = dragStartRef.current;
+    if (!start) return;
+    event.preventDefault();
+    const scale = window.devicePixelRatio || 1;
+    const dx = Math.round((event.screenX - start.pointerX) * scale);
+    const dy = Math.round((event.screenY - start.pointerY) * scale);
+    const next = { x: start.windowX + dx, y: start.windowY + dy };
+    updateDragDiagnostics({
+      lastMousePosition: `${Math.round(event.screenX)}, ${Math.round(event.screenY)}`,
+      dragMode: 'manual-fallback',
+    });
+    scheduleOverlayPosition(next);
+  };
+
+  const stopManualDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragStartRef.current = null;
+    updateDragDiagnostics({ draggingActive: false });
+  };
+
   return (
     <div
       data-testid="overlay-root"
@@ -123,6 +245,10 @@ export function OverlayApp() {
       <div
         data-testid="overlay-drag-region"
         data-tauri-drag-region
+        onPointerDown={handleDragPointerDown}
+        onPointerMove={handleDragPointerMove}
+        onPointerUp={stopManualDrag}
+        onPointerCancel={stopManualDrag}
         style={{
           position: 'absolute',
           top: 8,
@@ -144,6 +270,31 @@ export function OverlayApp() {
         }}
       >
         Drag Overlay
+      </div>
+
+      <div
+        data-testid="overlay-drag-diagnostics"
+        style={{
+          position: 'absolute',
+          left: 8,
+          bottom: 8,
+          zIndex: 30,
+          maxWidth: 220,
+          padding: '3px 6px',
+          borderRadius: 6,
+          background: 'rgba(0,0,0,0.55)',
+          color: '#ffffff',
+          fontSize: 9,
+          lineHeight: 1.25,
+          textAlign: 'left',
+          pointerEvents: 'none',
+        }}
+      >
+        <div>mouse down: {dragDiagnostics.mouseDownCount}</div>
+        <div>last pointer: {dragDiagnostics.lastMousePosition}</div>
+        <div>dragging: {String(dragDiagnostics.draggingActive)}</div>
+        <div>mode: {dragDiagnostics.dragMode}</div>
+        {dragDiagnostics.lastDragError && <div>error: {dragDiagnostics.lastDragError}</div>}
       </div>
 
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', gap: 4 }}>
@@ -196,6 +347,10 @@ export function OverlayApp() {
       </div>
     </div>
   );
+}
+
+function writeDragDiagnostics(diagnostics: DragDiagnostics) {
+  window.localStorage.setItem('codexpet.overlay.dragDiagnostics', JSON.stringify(diagnostics));
 }
 
 function createRenderModel(selectedNestId: string) {

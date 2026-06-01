@@ -1,5 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { invoke } from '@tauri-apps/api/core';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { OverlayApp } from './OverlayApp';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import { FALLBACK_CONFIG } from '@/config';
@@ -72,5 +74,28 @@ describe('OverlayApp', () => {
     expect(screen.getByText('capacity-orbit-nest')).toBeInTheDocument();
     expect(screen.getByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
     expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+  });
+
+  it('should receive pointer events on drag bar and start manual fallback drag', async () => {
+    vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
+      startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),
+    } as ReturnType<typeof getCurrentWebviewWindow>);
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    render(<OverlayApp />);
+
+    const pointerDown = new MouseEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      screenX: 120,
+      screenY: 140,
+    });
+    Object.defineProperty(pointerDown, 'pointerId', { value: 1 });
+
+    fireEvent(screen.getByTestId('overlay-drag-region'), pointerDown);
+
+    expect(await screen.findByText('mouse down: 1')).toBeInTheDocument();
+    expect(await screen.findByText('mode: manual-fallback')).toBeInTheDocument();
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_overlay_position');
   });
 });

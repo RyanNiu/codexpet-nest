@@ -148,6 +148,43 @@ pub fn reset_overlay_position_window<R: Runtime>(app: &tauri::AppHandle<R>) -> R
         .map_err(|error| format!("Failed to reset overlay position: {}", error))
 }
 
+pub fn get_overlay_position_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<tauri::PhysicalPosition<i32>, String> {
+    let window = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
+
+    window
+        .outer_position()
+        .map_err(|error| format!("Failed to read overlay position: {}", error))
+}
+
+pub fn set_overlay_position_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    x: i32,
+    y: i32,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
+
+    window
+        .set_position(tauri::PhysicalPosition::new(x, y))
+        .map_err(|error| format!("Failed to set overlay position: {}", error))
+}
+
+pub fn move_overlay_by_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    dx: i32,
+    dy: i32,
+) -> Result<tauri::PhysicalPosition<i32>, String> {
+    let current = get_overlay_position_window(app)?;
+    let next = tauri::PhysicalPosition::new(current.x + dx, current.y + dy);
+    set_overlay_position_window(app, next.x, next.y)?;
+    Ok(next)
+}
+
 pub fn show_settings_window<R: Runtime>(app: &tauri::AppHandle<R>) -> Result<(), String> {
     let window = match app.get_webview_window("main") {
         Some(window) => window,

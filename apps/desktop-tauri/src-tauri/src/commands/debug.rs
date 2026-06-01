@@ -2,7 +2,14 @@ use crate::codex_state::{self, CodexState};
 use crate::coords::{self, ConvertedPosition, ScreenInfo};
 use crate::platform;
 use crate::windows;
+use serde::Serialize;
 use tauri::Manager;
+
+#[derive(Serialize)]
+pub struct OverlayPosition {
+    x: i32,
+    y: i32,
+}
 
 /// Returns the current Codex pet state: overlay open/closed, bounds, etc.
 #[tauri::command]
@@ -118,4 +125,27 @@ pub fn reset_overlay_position(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn resize_overlay_debug(app: tauri::AppHandle) -> Result<(), String> {
     windows::resize_overlay_debug_window(&app)
+}
+
+#[tauri::command]
+pub fn get_overlay_position(app: tauri::AppHandle) -> Result<OverlayPosition, String> {
+    let position = windows::get_overlay_position_window(&app)?;
+    Ok(OverlayPosition {
+        x: position.x,
+        y: position.y,
+    })
+}
+
+#[tauri::command]
+pub fn set_overlay_position(app: tauri::AppHandle, x: i32, y: i32) -> Result<(), String> {
+    windows::set_overlay_position_window(&app, x, y)
+}
+
+#[tauri::command]
+pub fn move_overlay_by(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<OverlayPosition, String> {
+    let position = windows::move_overlay_by_window(&app, dx, dy)?;
+    Ok(OverlayPosition {
+        x: position.x,
+        y: position.y,
+    })
 }

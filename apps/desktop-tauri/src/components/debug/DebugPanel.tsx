@@ -4,6 +4,19 @@ import { useDebugStore } from '@/store/debugStore';
 import type { CodexStateDebug, ScreenInfo, ConvertedPosition } from '@/store/debugStore';
 import { useAppConfigStore } from '@/store/appConfigStore';
 
+interface OverlayPosition {
+  x: number;
+  y: number;
+}
+
+interface OverlayDragDiagnostics {
+  mouseDownCount: number;
+  lastMousePosition: string;
+  draggingActive: boolean;
+  dragMode: string;
+  lastDragError: string | null;
+}
+
 export function DebugPanel() {
   const {
     codexState,
@@ -26,15 +39,44 @@ export function DebugPanel() {
 
   const [overlayVisible, setOverlayVisible] = useState(true);
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
+  const [overlayPosition, setOverlayPosition] = useState<OverlayPosition | null>(null);
+  const [dragDiagnostics, setDragDiagnostics] = useState<OverlayDragDiagnostics | null>(null);
+
+  const refreshDragDiagnostics = useCallback(() => {
+    const raw = window.localStorage.getItem('codexpet.overlay.dragDiagnostics');
+    if (!raw) return;
+    try {
+      setDragDiagnostics(JSON.parse(raw) as OverlayDragDiagnostics);
+    } catch {
+      setDragDiagnostics({
+        mouseDownCount: 0,
+        lastMousePosition: 'parse-error',
+        draggingActive: false,
+        dragMode: 'unknown',
+        lastDragError: raw,
+      });
+    }
+  }, []);
+
+  const refreshOverlayPosition = useCallback(() => {
+    invoke<OverlayPosition>('get_overlay_position')
+      .then((position) => {
+        setOverlayPosition(position);
+        setOverlayControlError(null);
+      })
+      .catch((e) => setOverlayControlError(String(e)));
+    refreshDragDiagnostics();
+  }, [refreshDragDiagnostics]);
 
   const refreshOverlayVisible = useCallback(() => {
     invoke<boolean>('is_overlay_visible')
       .then((visible) => {
         setOverlayVisible(visible);
         setOverlayControlError(null);
+        refreshOverlayPosition();
       })
       .catch((e) => setOverlayControlError(String(e)));
-  }, []);
+  }, [refreshOverlayPosition]);
 
   const fetchCodexState = useCallback(() => {
     useDebugStore.setState({ codexStateLoading: true });
@@ -105,21 +147,28 @@ export function DebugPanel() {
 
   const resetOverlayPosition = useCallback(() => {
     invoke('reset_overlay_position')
-      .then(refreshOverlayVisible)
+      .then(() => {
+        refreshOverlayVisible();
+        refreshOverlayPosition();
+      })
       .catch((e) => setOverlayControlError(String(e)));
-  }, [refreshOverlayVisible]);
+  }, [refreshOverlayPosition, refreshOverlayVisible]);
 
   const resizeOverlayForDebug = useCallback(() => {
     invoke('resize_overlay_debug')
-      .then(refreshOverlayVisible)
+      .then(() => {
+        refreshOverlayVisible();
+        refreshOverlayPosition();
+      })
       .catch((e) => setOverlayControlError(String(e)));
-  }, [refreshOverlayVisible]);
+  }, [refreshOverlayPosition, refreshOverlayVisible]);
 
   // Auto-fetch on mount
   useEffect(() => {
     fetchCodexState();
     fetchScreens();
     refreshOverlayVisible();
+    refreshOverlayPosition();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -261,6 +310,29 @@ export function DebugPanel() {
             {clickThrough ? 'ON (mouse events pass through)' : 'OFF (overlay captures mouse)'}
           </span>
         </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Overlay Position: </span>
+          <span style={style.value}>
+            {overlayPosition ? `x=${overlayPosition.x}, y=${overlayPosition.y}` : 'unknown'}
+          </span>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Drag Mode: </span>
+          <span style={style.value}>{dragDiagnostics?.dragMode ?? 'unknown'}</span>
+          <span style={style.label}> | Active: </span>
+          <span style={style.value}>{String(dragDiagnostics?.draggingActive ?? false)}</span>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Mouse Down Count: </span>
+          <span style={style.value}>{dragDiagnostics?.mouseDownCount ?? 0}</span>
+          <span style={style.label}> | Last Mouse: </span>
+          <span style={style.value}>{dragDiagnostics?.lastMousePosition ?? 'none'}</span>
+        </div>
+        {dragDiagnostics?.lastDragError && (
+          <p style={{ color: 'red', fontSize: 12, margin: '4px 0' }}>
+            Last drag error: {dragDiagnostics.lastDragError}
+          </p>
+        )}
         <div style={style.row}>
           <button style={style.button} onClick={showOverlay}>
             Show Overlay
@@ -270,6 +342,9 @@ export function DebugPanel() {
           </button>
           <button style={style.button} onClick={handleRefreshOverlayVisible}>
             Refresh Visibility
+          </button>
+          <button style={style.button} onClick={refreshOverlayPosition}>
+            Refresh Position/Drag Diagnostics
           </button>
         </div>
         <div style={style.row}>
