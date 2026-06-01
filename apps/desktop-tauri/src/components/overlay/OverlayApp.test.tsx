@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { createDefaultSettings } from '@codexpet/core';
 import { OverlayApp } from './OverlayApp';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { FALLBACK_CONFIG } from '@/config';
 
 describe('OverlayApp', () => {
@@ -12,6 +14,12 @@ describe('OverlayApp', () => {
     useAppConfigStore.setState({
       config: FALLBACK_CONFIG,
       isLoading: true,
+      error: null,
+    });
+    useSettingsStore.setState({
+      settings: createDefaultSettings(),
+      isLoading: true,
+      isSaving: false,
       error: null,
     });
   });
@@ -27,6 +35,7 @@ describe('OverlayApp', () => {
       appName: 'CodexPet',
       isDebug: false, // explicitly false to test non-debug path
     });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
     expect(screen.getByTestId('nest-render-model')).toBeInTheDocument();
     expect(screen.getByTestId('widget-slot-clock')).toBeInTheDocument();
@@ -39,6 +48,7 @@ describe('OverlayApp', () => {
       ...FALLBACK_CONFIG,
       isDebug: true,
     });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
     // Debug elements must be visible.
@@ -57,6 +67,7 @@ describe('OverlayApp', () => {
       ...FALLBACK_CONFIG,
       isDebug: undefined as unknown as boolean, // simulate missing field
     });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
     // import.meta.env.DEV is true in vitest, so debug elements must render.
@@ -67,6 +78,7 @@ describe('OverlayApp', () => {
 
   it('should switch built-in nest fixture in the overlay', async () => {
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
     fireEvent.click(screen.getByRole('button', { name: 'capacity-orbit' }));
@@ -76,11 +88,30 @@ describe('OverlayApp', () => {
     expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 
+  it('should render saved built-in nest and overlay mode', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useSettingsStore.setState({
+      settings: {
+        ...createDefaultSettings(),
+        activeNestId: 'basket-pomodoro-nest',
+        overlayMode: 'standalone-fixed',
+      },
+      isLoading: false,
+    });
+
+    render(<OverlayApp />);
+
+    expect(screen.getByText('basket-pomodoro-nest')).toBeInTheDocument();
+    expect(screen.getByText(/mode: standalone-fixed/)).toBeInTheDocument();
+    expect(await screen.findByText(/standalone-fixed from local settings/)).toBeInTheDocument();
+  });
+
   it('should receive pointer events on drag bar and start manual fallback drag', async () => {
     vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
       startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),
     } as unknown as ReturnType<typeof getCurrentWebviewWindow>);
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
     const pointerDown = new MouseEvent('pointerdown', {

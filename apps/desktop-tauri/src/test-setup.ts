@@ -3,6 +3,8 @@ import { beforeEach, vi } from 'vitest';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import { FALLBACK_CONFIG } from '@/config';
 import { useDebugStore } from '@/store/debugStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { createDefaultSettings } from '@codexpet/core';
 
 Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
   configurable: true,
@@ -48,7 +50,14 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 }));
 
 beforeEach(async () => {
+  const fallbackSettings = createDefaultSettings();
   useAppConfigStore.setState({ config: FALLBACK_CONFIG, isLoading: true, error: null });
+  useSettingsStore.setState({
+    settings: fallbackSettings,
+    isLoading: true,
+    isSaving: false,
+    error: null,
+  });
   useDebugStore.setState({
     codexState: null,
     codexStateLoading: false,
@@ -66,6 +75,10 @@ beforeEach(async () => {
     switch (command) {
       case 'get_app_config':
         return Promise.resolve(fallbackConfig);
+      case 'load_local_settings':
+        return Promise.resolve(fallbackSettings);
+      case 'save_local_settings':
+        return Promise.resolve(undefined);
       case 'get_codex_state':
         return Promise.resolve(codexState);
       case 'get_screen_list':

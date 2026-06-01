@@ -4,8 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
-import type { OverlayMode } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import type { CodexStateDebug, ConvertedPosition, ScreenInfo } from '@/store/debugStore';
 import { NestOverlayView } from './NestOverlayView';
 
@@ -32,8 +32,9 @@ const initialDragDiagnostics: DragDiagnostics = {
 
 export function OverlayApp() {
   const { config, isLoading } = useAppConfigStore();
-  const [selectedNestId, setSelectedNestId] = useState('default');
-  const [overlayMode, setOverlayMode] = useState<OverlayMode>('follow-codex');
+  const { settings, isLoading: settingsLoading, update: updateSettings } = useSettingsStore();
+  const selectedNestId = settings.activeNestId ?? builtInNestFixtures[0]?.id ?? 'default';
+  const overlayMode = settings.overlayMode;
   const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
   const [dragDiagnostics, setDragDiagnostics] = useState<DragDiagnostics>(initialDragDiagnostics);
   const dragStartRef = useRef<{
@@ -50,7 +51,17 @@ export function OverlayApp() {
   }, [dragDiagnostics]);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || settingsLoading) return;
+    invoke('set_overlay_click_through', { enabled: settings.clickThrough }).catch(() => undefined);
+  }, [isLoading, settings.clickThrough, settingsLoading]);
+
+  useEffect(() => {
+    if (isLoading || settingsLoading) return;
+    if (settings.overlayMode === 'standalone-fixed') {
+      setRuntimeStatus('Runtime: standalone-fixed from local settings');
+      return;
+    }
+
     let cancelled = false;
     async function computeInitialPosition() {
       try {
@@ -59,7 +70,6 @@ export function OverlayApp() {
         const mascot = bounds?.mascot;
         if (!bounds || !mascot) {
           if (!cancelled) {
-            setOverlayMode('standalone-fixed');
             setRuntimeStatus('Runtime: standalone fallback (Codex mascot bounds unavailable)');
           }
           return;
@@ -75,14 +85,12 @@ export function OverlayApp() {
           scale: screens[0]?.scale_factor ?? 1.0,
         });
         if (!cancelled) {
-          setOverlayMode('follow-codex');
           setRuntimeStatus(
             `Runtime: follow-codex initial position x=${converted.x.toFixed(1)}, y=${converted.y.toFixed(1)} (continuous loop not enabled)`,
           );
         }
       } catch (error) {
         if (!cancelled) {
-          setOverlayMode('standalone-fixed');
           setRuntimeStatus(`Runtime: standalone fallback (${String(error)})`);
         }
       }
@@ -92,9 +100,9 @@ export function OverlayApp() {
     return () => {
       cancelled = true;
     };
-  }, [isLoading]);
+  }, [isLoading, settings.overlayMode, settingsLoading]);
 
-  if (isLoading) {
+  if (isLoading || settingsLoading) {
     return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
   }
 
@@ -302,7 +310,7 @@ export function OverlayApp() {
           <button
             key={fixture.id}
             type="button"
-            onClick={() => setSelectedNestId(fixture.id)}
+            onClick={() => updateSettings({ activeNestId: fixture.id }).catch(() => undefined)}
             style={{
               fontSize: 9,
               border: '1px solid rgba(255,255,255,0.5)',

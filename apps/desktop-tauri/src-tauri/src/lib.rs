@@ -57,6 +57,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::config::get_app_config,
+            commands::config::load_local_settings,
+            commands::config::save_local_settings,
             commands::debug::get_codex_state,
             commands::debug::get_screen_list,
             commands::debug::convert_position,
