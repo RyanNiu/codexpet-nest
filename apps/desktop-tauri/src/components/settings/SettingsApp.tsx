@@ -1,4 +1,5 @@
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { DebugPanel } from '@/components/debug/DebugPanel';
 
 export function SettingsApp() {
   const { config, isLoading, error } = useAppConfigStore();
@@ -8,7 +9,7 @@ export function SettingsApp() {
       style={{
         padding: 24,
         fontFamily: 'system-ui, sans-serif',
-        maxWidth: 480,
+        maxWidth: 600,
         margin: '0 auto',
       }}
     >
@@ -23,6 +24,8 @@ export function SettingsApp() {
           <p>API URL: {config.apiBaseUrl}</p>
         </div>
       )}
+
+      <DebugPanel />
     </div>
   );
 }

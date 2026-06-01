@@ -1,8 +1,10 @@
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime,
+    AppHandle, Runtime,
 };
+
+use crate::windows;
 
 /// Build the system tray (menu bar on macOS, system tray on Windows/Linux).
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayIcon<R>> {
@@ -24,26 +26,31 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayI
         .build()?;
 
     // --- Tray Icon ---
-    // Uses the app icon as the tray icon. We set icon_as_template for macOS.
+    // Embed the 32×32 PNG icon so it is available at runtime even in dev mode.
+    // On macOS, icon_as_template treats the icon as a monochrome template that
+    // adapts to light/dark menu bar appearance.
     let tray = TrayIconBuilder::with_id("codexpet-tray")
         .tooltip("CodexPet Nest")
         .icon_as_template(true)
+        .icon(
+            tauri::image::Image::from_bytes(include_bytes!("../../icons/32x32.png"))
+                .expect("failed to load tray icon from embedded 32x32.png"),
+        )
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "show_overlay" => {
-                if let Some(window) = app.get_webview_window("overlay") {
-                    let _ = window.show();
+                if let Err(error) = windows::show_overlay_window(app) {
+                    log::error!("{}", error);
                 }
             }
             "hide_overlay" => {
-                if let Some(window) = app.get_webview_window("overlay") {
-                    let _ = window.hide();
+                if let Err(error) = windows::hide_overlay_window(app) {
+                    log::error!("{}", error);
                 }
             }
             "open_settings" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                if let Err(error) = windows::show_settings_window(app) {
+                    log::error!("{}", error);
                 }
             }
             _ => {}
@@ -57,11 +64,19 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<tauri::tray::TrayI
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("overlay") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
+                match windows::is_overlay_window_visible(app) {
+                    Ok(true) => {
+                        if let Err(error) = windows::hide_overlay_window(app) {
+                            log::error!("{}", error);
+                        }
+                    }
+                    Ok(false) => {
+                        if let Err(error) = windows::show_overlay_window(app) {
+                            log::error!("{}", error);
+                        }
+                    }
+                    Err(error) => {
+                        log::error!("{}", error);
                     }
                 }
             }

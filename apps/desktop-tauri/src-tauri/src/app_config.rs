@@ -4,6 +4,7 @@ use serde::Serialize;
 /// Unified application configuration shared with the React frontend
 /// via the `get_app_config` Tauri command.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub app_name: String,
     pub version: String,
