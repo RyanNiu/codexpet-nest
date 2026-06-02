@@ -209,4 +209,11 @@ mod tests {
         assert!(validate_action(&shortcut, "macos").is_ok());
         assert!(validate_action(&app, "macos").is_ok());
     }
+
+    #[test]
+    fn default_capability_does_not_grant_shell() {
+        let capability = include_str!("../../capabilities/default.json");
+
+        assert!(!capability.contains("shell:default"));
+    }
 }

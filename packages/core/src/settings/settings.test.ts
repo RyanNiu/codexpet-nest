@@ -3,6 +3,7 @@ import {
   BUILT_IN_QUICK_ACTIONS,
   createDefaultSettings,
   loadSettings,
+  validateActionTarget,
   validateWidgetActionConfig,
 } from './index';
 
@@ -73,7 +74,54 @@ describe('settings schema', () => {
     expect(result.errors).toContain(
       'Widget actions-widget references missing action missing-action',
     );
-    expect(result.errors).toContain('bad-url: URL protocol is not allowed: file:');
+    expect(result.errors).toContain('bad-url: URL target is not allowlisted: file:///tmp/secret');
+  });
+
+  it('validates URL actions against the local action allowlist', () => {
+    expect(
+      validateActionTarget({
+        id: 'docs',
+        name: 'Docs',
+        kind: 'url',
+        target: 'https://codexpet.xyz/docs',
+        enabled: true,
+        requireConfirm: false,
+        platform: 'all',
+      }),
+    ).toBeNull();
+    expect(
+      validateActionTarget({
+        id: 'local',
+        name: 'Localhost',
+        kind: 'url',
+        target: 'http://localhost:1420/debug',
+        enabled: true,
+        requireConfirm: false,
+        platform: 'all',
+      }),
+    ).toBeNull();
+    expect(
+      validateActionTarget({
+        id: 'evil',
+        name: 'Evil',
+        kind: 'url',
+        target: 'https://evil.com/phishing',
+        enabled: true,
+        requireConfirm: false,
+        platform: 'all',
+      }),
+    ).toBe('URL target is not allowlisted: https://evil.com/phishing');
+    expect(
+      validateActionTarget({
+        id: 'plain-http',
+        name: 'Plain HTTP',
+        kind: 'url',
+        target: 'http://example.com',
+        enabled: true,
+        requireConfirm: false,
+        platform: 'all',
+      }),
+    ).toBe('URL target is not allowlisted: http://example.com');
   });
 
   it('disables actions on unsupported platform', () => {

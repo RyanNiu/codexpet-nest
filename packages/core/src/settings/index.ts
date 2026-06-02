@@ -391,10 +391,11 @@ export function validateActionTarget(action: QuickActionSettings): string | null
   if (action.kind === 'shell-placeholder') return null;
   if (action.kind === 'url') {
     try {
-      const url = new URL(action.target);
-      return url.protocol === 'https:' || url.protocol === 'http:'
+      new URL(action.target);
+      return action.target.startsWith('https://codexpet.xyz/') ||
+        action.target.startsWith('http://localhost:')
         ? null
-        : `URL protocol is not allowed: ${url.protocol}`;
+        : `URL target is not allowlisted: ${action.target}`;
     } catch {
       return 'URL target is invalid';
     }

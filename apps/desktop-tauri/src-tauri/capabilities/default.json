@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default capability for all windows",
   "windows": ["main", "overlay"],
-  "permissions": ["core:default", "opener:default", "shell:default"]
+  "permissions": ["core:default", "opener:default"]
 }

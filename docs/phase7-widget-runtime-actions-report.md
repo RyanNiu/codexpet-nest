@@ -12,6 +12,7 @@ Implemented areas:
 - Tauri safe action commands: `execute_quick_action`, `get_action_capabilities`, and `list_supported_actions`.
 - Settings UI section for Widgets / Actions, including status, platform, confirmation requirement, and action enable toggles.
 - Overlay runtime data display for clock, usage mock, action count, clickable quick actions, visible action result/error, and confirmation state.
+- Tauri shell plugin/capability removal so Phase 7 grants no shell permission.
 
 ## Core Model
 
@@ -44,6 +45,11 @@ Allowed action behavior:
 - `shortcut`: returns a safe placeholder result for allowlisted docs actions.
 - `app`: returns a safe placeholder result for `codex-home` only.
 
+Core and Rust use the same URL allowlist:
+
+- `https://codexpet.xyz/`
+- `http://localhost:`
+
 Rejected behavior:
 
 - `shell-placeholder` always returns an error.
@@ -57,6 +63,7 @@ Rejected behavior:
 Phase 7 intentionally does not implement arbitrary local execution.
 
 - No arbitrary shell execution.
+- No Tauri shell capability or shell plugin registration.
 - No package script discovery or execution.
 - Imported packages do not register dangerous actions into runtime execution.
 - Action targets are validated before execution.
