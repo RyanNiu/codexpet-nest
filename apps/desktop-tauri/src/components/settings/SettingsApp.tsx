@@ -49,11 +49,20 @@ export function SettingsApp() {
       .catch((invokeError) => setOverlayControlError(String(invokeError)));
   };
 
-  const setClickThrough = (enabled: boolean) => {
-    update({ clickThrough: enabled }).catch(() => undefined);
-    invoke('set_overlay_click_through', { enabled }).catch((invokeError) => {
-      setOverlayControlError(String(invokeError));
-    });
+  const setClickThrough = async (enabled: boolean) => {
+    const previous = settings.clickThrough;
+    let nativeApplied = false;
+    setOverlayControlError(null);
+    try {
+      await invoke('set_overlay_click_through', { enabled });
+      nativeApplied = true;
+      await update({ clickThrough: enabled });
+    } catch (transactionError) {
+      if (nativeApplied) {
+        await invoke('set_overlay_click_through', { enabled: previous }).catch(() => undefined);
+      }
+      setOverlayControlError(String(transactionError));
+    }
   };
 
   return (
@@ -147,7 +156,9 @@ export function SettingsApp() {
                   aria-label="Overlay mode"
                   value={settings.overlayMode}
                   onChange={(event) =>
-                    update({ overlayMode: event.currentTarget.value as OverlayMode })
+                    update({ overlayMode: event.currentTarget.value as OverlayMode }).catch(
+                      () => undefined,
+                    )
                   }
                   style={selectStyle}
                 >
@@ -163,7 +174,9 @@ export function SettingsApp() {
                 <select
                   aria-label="Built-in nest"
                   value={activeNestId}
-                  onChange={(event) => update({ activeNestId: event.currentTarget.value })}
+                  onChange={(event) =>
+                    update({ activeNestId: event.currentTarget.value }).catch(() => undefined)
+                  }
                   style={selectStyle}
                 >
                   {builtInNestFixtures.map((fixture) => (

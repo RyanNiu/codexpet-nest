@@ -33,12 +33,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   update: async (patch) => {
     const next = loadSettings({ ...get().settings, ...patch }).settings;
-    set({ settings: next, isSaving: true, error: null });
+    set({ isSaving: true, error: null });
     try {
       await invoke('save_local_settings', { settings: next });
-      set({ isSaving: false, error: null });
+      set({ settings: next, isSaving: false, error: null });
     } catch (error) {
       set({ isSaving: false, error: String(error) });
+      throw error;
     }
   },
 }));

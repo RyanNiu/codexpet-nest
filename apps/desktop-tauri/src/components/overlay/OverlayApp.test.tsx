@@ -83,8 +83,8 @@ describe('OverlayApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'capacity-orbit' }));
 
-    expect(screen.getByText('capacity-orbit-nest')).toBeInTheDocument();
-    expect(screen.getByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
+    expect(await screen.findByText('capacity-orbit-nest')).toBeInTheDocument();
+    expect(await screen.findByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
     expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
   });
 

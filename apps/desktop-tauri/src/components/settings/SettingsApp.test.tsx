@@ -65,4 +65,34 @@ describe('SettingsApp', () => {
       );
     });
   });
+
+  it('should not save click-through when native command fails', async () => {
+    const previous = createDefaultSettings();
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useSettingsStore.setState({ settings: previous, isLoading: false });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'set_overlay_click_through') {
+        return Promise.reject(new Error('native failed'));
+      }
+      if (command === 'is_overlay_visible') {
+        return Promise.resolve(true);
+      }
+      if (command === 'save_local_settings') {
+        return Promise.resolve(undefined);
+      }
+      return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
+    });
+    render(<SettingsApp />);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Click-through/i }));
+
+    expect(await screen.findByText(/native failed/)).toBeInTheDocument();
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith(
+      'save_local_settings',
+      expect.objectContaining({
+        settings: expect.objectContaining({ clickThrough: true }),
+      }),
+    );
+    expect(useSettingsStore.getState().settings.clickThrough).toBe(false);
+  });
 });
