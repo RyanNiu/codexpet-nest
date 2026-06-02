@@ -74,6 +74,76 @@ describe('SettingsApp', () => {
     });
   });
 
+  it('should show imported and disabled nests but only select enabled nests', async () => {
+    const importedNest = {
+      ...builtInNestRegistryEntries[0]!,
+      id: 'imported-nest',
+      name: 'Imported Nest',
+      manifestPath: '/tmp/imported/codexpet-package.json',
+      assetRoot: '/tmp/imported',
+    };
+    const disabledNest = {
+      ...builtInNestRegistryEntries[0]!,
+      id: 'disabled-nest',
+      name: 'Disabled Nest',
+      enabled: false,
+    };
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({
+      registry: {
+        schemaVersion: 1,
+        packages: [...builtInNestRegistryEntries, importedNest, disabledNest],
+      },
+      isLoading: false,
+    });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+
+    render(<SettingsApp />);
+
+    expect(screen.getAllByText('Imported Nest').length).toBeGreaterThan(0);
+    expect(screen.getByText('Disabled Nest')).toBeInTheDocument();
+    expect(screen.getByText('disabled')).toBeInTheDocument();
+    expect(screen.getByLabelText('Active nest')).toHaveValue('default');
+    expect(screen.getByRole('option', { name: 'Imported Nest' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Disabled Nest' })).not.toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible'));
+  });
+
+  it('should import local package by directory path', async () => {
+    const importedRegistry = {
+      schemaVersion: 1,
+      packages: [
+        ...builtInNestRegistryEntries,
+        {
+          ...builtInNestRegistryEntries[0]!,
+          id: 'imported-nest',
+          name: 'Imported Nest',
+          manifestPath: '/tmp/imported/codexpet-package.json',
+          assetRoot: '/tmp/imported',
+        },
+      ],
+    };
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false, isSaving: false, error: null });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'import_local_package') return Promise.resolve(importedRegistry);
+      if (command === 'is_overlay_visible') return Promise.resolve(true);
+      return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
+    });
+
+    render(<SettingsApp />);
+    fireEvent.change(screen.getByLabelText('Local package directory'), {
+      target: { value: '/tmp/imported' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    await waitFor(() => expect(screen.getAllByText('Imported Nest').length).toBeGreaterThan(0));
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('import_local_package', {
+      importPath: '/tmp/imported',
+    });
+  });
+
   it('should not save click-through when native command fails', async () => {
     const previous = createDefaultSettings();
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);

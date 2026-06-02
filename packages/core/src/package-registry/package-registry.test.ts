@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultPackageRegistry, loadPackageRegistry } from './index';
+import {
+  createDefaultPackageRegistry,
+  createLocalPackageEntry,
+  loadPackageRegistry,
+  upsertLocalPackageEntry,
+} from './index';
 
 describe('package registry', () => {
   it('creates a default registry', () => {
@@ -61,5 +66,50 @@ describe('package registry', () => {
     expect(result.usedFallback).toBe(true);
     expect(result.registry).toEqual(createDefaultPackageRegistry());
     expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('creates and upserts imported local package entries', () => {
+    const entry = createLocalPackageEntry({
+      id: 'imported-nest',
+      type: 'codexpet.nest',
+      version: '1.2.3',
+      name: 'Imported Nest',
+      manifestPath: '/tmp/imported/codexpet-package.json',
+      assetRoot: '/tmp/imported',
+      now: '2026-02-01T00:00:00.000Z',
+    });
+
+    const registry = upsertLocalPackageEntry(createDefaultPackageRegistry(), entry);
+
+    expect(entry.type).toBe('nest');
+    expect(entry.enabled).toBe(true);
+    expect(registry.packages).toEqual([entry]);
+  });
+
+  it('preserves existing createdAt and enabled state when replacing an entry', () => {
+    const existing = createLocalPackageEntry({
+      id: 'imported-nest',
+      type: 'nest',
+      version: '1.0.0',
+      name: 'Imported Nest',
+      manifestPath: '/tmp/imported/codexpet-package.json',
+      assetRoot: '/tmp/imported',
+      enabled: false,
+      now: '2026-02-01T00:00:00.000Z',
+    });
+    const next = createLocalPackageEntry({
+      id: 'imported-nest',
+      type: 'nest',
+      version: '1.0.1',
+      name: 'Imported Nest Updated',
+      manifestPath: '/tmp/imported/codexpet-package.json',
+      assetRoot: '/tmp/imported',
+      existing,
+      now: '2026-02-02T00:00:00.000Z',
+    });
+
+    expect(next.createdAt).toBe(existing.createdAt);
+    expect(next.updatedAt).toBe('2026-02-02T00:00:00.000Z');
+    expect(next.enabled).toBe(false);
   });
 });

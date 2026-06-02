@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
+import type { NestLayoutManifest } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import {
   getEnabledNestEntries,
@@ -27,6 +28,11 @@ interface DragDiagnostics {
   lastDragError: string | null;
 }
 
+interface ImportedNestPackage {
+  nestLayout: NestLayoutManifest;
+  missingAssets: string[];
+}
+
 const initialDragDiagnostics: DragDiagnostics = {
   mouseDownCount: 0,
   lastMousePosition: 'none',
@@ -47,6 +53,8 @@ export function OverlayApp() {
   const selectedNestId = selectedNestEntry?.id ?? builtInNestFixtures[0]?.id ?? 'default';
   const overlayMode = settings.overlayMode;
   const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
+  const [importedNest, setImportedNest] = useState<ImportedNestPackage | null>(null);
+  const [assetIssue, setAssetIssue] = useState<string | null>(null);
   const [dragDiagnostics, setDragDiagnostics] = useState<DragDiagnostics>(initialDragDiagnostics);
   const dragStartRef = useRef<{
     pointerX: number;
@@ -65,6 +73,38 @@ export function OverlayApp() {
     if (isLoading || settingsLoading || registryLoading) return;
     invoke('set_overlay_click_through', { enabled: settings.clickThrough }).catch(() => undefined);
   }, [isLoading, registryLoading, settings.clickThrough, settingsLoading]);
+
+  useEffect(() => {
+    if (isLoading || settingsLoading || registryLoading) return;
+    if (!selectedNestEntry || isBuiltInEntry(selectedNestEntry.assetRoot)) {
+      setImportedNest(null);
+      setAssetIssue(null);
+      return;
+    }
+
+    let cancelled = false;
+    invoke<ImportedNestPackage>('load_local_nest_package', {
+      assetRoot: selectedNestEntry.assetRoot,
+      manifestPath: selectedNestEntry.manifestPath,
+    })
+      .then((pkg) => {
+        if (cancelled) return;
+        setImportedNest(pkg);
+        setAssetIssue(
+          pkg.missingAssets.length > 0
+            ? `Missing local assets: ${pkg.missingAssets.join(', ')}`
+            : null,
+        );
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setImportedNest(null);
+        setAssetIssue(`Local package load failed: ${String(loadError)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, registryLoading, selectedNestEntry, settingsLoading]);
 
   useEffect(() => {
     if (isLoading || settingsLoading || registryLoading) return;
@@ -351,7 +391,7 @@ export function OverlayApp() {
 
       <div style={{ position: 'relative', zIndex: 5, textAlign: 'center' }}>
         <NestOverlayView
-          model={createRenderModel(selectedNestId)}
+          model={createRenderModel(selectedNestId, selectedNestEntry?.assetRoot, importedNest)}
           selectedNestId={selectedNestId}
         />
         <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.82, marginTop: -4 }}>
@@ -360,6 +400,11 @@ export function OverlayApp() {
         {nestFallback && settings.activeNestId && (
           <div style={{ textAlign: 'center', fontSize: 9, color: '#ffcc00', opacity: 0.9 }}>
             Registry fallback: {settings.activeNestId} {'->'} {selectedNestId}
+          </div>
+        )}
+        {assetIssue && (
+          <div style={{ textAlign: 'center', fontSize: 9, color: '#ffcc00', opacity: 0.9 }}>
+            {assetIssue}
           </div>
         )}
         <div style={{ textAlign: 'center', fontSize: 9, opacity: 0.72 }}>{runtimeStatus}</div>
@@ -389,7 +434,21 @@ function writeDragDiagnostics(diagnostics: DragDiagnostics) {
   window.localStorage.setItem('codexpet.overlay.dragDiagnostics', JSON.stringify(diagnostics));
 }
 
-function createRenderModel(selectedNestId: string) {
+function createRenderModel(
+  selectedNestId: string,
+  assetRoot: string | undefined,
+  importedNest: ImportedNestPackage | null,
+) {
+  if (importedNest && assetRoot && !isBuiltInEntry(assetRoot)) {
+    const missingAssets = new Set(importedNest.missingAssets);
+    const metrics = createMetricSnapshot();
+    return buildNestRenderModel({
+      theme: importedNest.nestLayout,
+      metrics,
+      resolveAsset: (path) => (missingAssets.has(path) ? null : localAssetUrl(assetRoot, path)),
+    });
+  }
+
   const fixture = getBuiltInNestFixture(selectedNestId) ?? builtInNestFixtures[0];
   if (!fixture) {
     throw new Error('No built-in nest fixtures are available');
@@ -400,4 +459,12 @@ function createRenderModel(selectedNestId: string) {
     metrics,
     resolveAsset: (path) => fixture.assets[path] ?? null,
   });
+}
+
+function isBuiltInEntry(assetRoot: string): boolean {
+  return assetRoot.startsWith('builtin/');
+}
+
+function localAssetUrl(assetRoot: string, path: string): string {
+  return `file://${assetRoot.replace(/\/$/, '')}/${path}`;
 }

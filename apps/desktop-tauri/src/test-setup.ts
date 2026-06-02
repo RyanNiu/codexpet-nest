@@ -94,6 +94,10 @@ beforeEach(async () => {
         return Promise.resolve(fallbackRegistry);
       case 'save_local_registry':
         return Promise.resolve(undefined);
+      case 'import_local_package':
+        return Promise.resolve(fallbackRegistry);
+      case 'load_local_nest_package':
+        return Promise.resolve({ nestLayout: {}, missingAssets: [] });
       case 'get_codex_state':
         return Promise.resolve(codexState);
       case 'get_screen_list':

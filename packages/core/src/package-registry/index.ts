@@ -14,6 +14,19 @@ export interface LocalPackageEntry {
   updatedAt: string;
 }
 
+export interface CreateLocalPackageEntryInput {
+  id: string;
+  type: LocalPackageType | 'codexpet.pet' | 'codexpet.nest';
+  version: string;
+  name?: string;
+  displayName?: string;
+  manifestPath: string;
+  assetRoot: string;
+  enabled?: boolean;
+  now?: string;
+  existing?: LocalPackageEntry;
+}
+
 export interface LocalPackageRegistry {
   schemaVersion: number;
   packages: LocalPackageEntry[];
@@ -76,6 +89,32 @@ export function loadPackageRegistry(value: unknown): PackageRegistryLoadResult {
 
 export function validatePackageRegistry(value: unknown): PackageRegistryLoadResult {
   return loadPackageRegistry(value);
+}
+
+export function createLocalPackageEntry(input: CreateLocalPackageEntryInput): LocalPackageEntry {
+  const now = input.now ?? new Date(0).toISOString();
+  const name = input.name ?? input.displayName;
+  if (!name) throw new Error('Local package entry requires name or displayName');
+  return {
+    id: input.id,
+    type: coerceType(input.type),
+    version: input.version,
+    name,
+    manifestPath: input.manifestPath,
+    assetRoot: input.assetRoot,
+    enabled: input.enabled ?? input.existing?.enabled ?? true,
+    createdAt: input.existing?.createdAt ?? now,
+    updatedAt: now,
+  };
+}
+
+export function upsertLocalPackageEntry(
+  registry: LocalPackageRegistry,
+  entry: LocalPackageEntry,
+): LocalPackageRegistry {
+  const byId = new Map(registry.packages.map((item) => [item.id, item]));
+  byId.set(entry.id, entry);
+  return { ...registry, packages: Array.from(byId.values()) };
 }
 
 function normalizeRegistry(value: Record<string, unknown>): LocalPackageRegistry {

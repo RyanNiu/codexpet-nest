@@ -140,6 +140,65 @@ describe('OverlayApp', () => {
     ).toBeInTheDocument();
   });
 
+  it('should render imported nest issue when local asset is missing', async () => {
+    const importedNest = {
+      ...builtInNestRegistryEntries[0]!,
+      id: 'imported-nest',
+      name: 'Imported Nest',
+      manifestPath: '/tmp/imported/codexpet-package.json',
+      assetRoot: '/tmp/imported',
+    };
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({
+      registry: { schemaVersion: 1, packages: [...builtInNestRegistryEntries, importedNest] },
+      isLoading: false,
+    });
+    useSettingsStore.setState({
+      settings: {
+        ...createDefaultSettings(),
+        activeNestId: 'imported-nest',
+      },
+      isLoading: false,
+    });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'load_local_nest_package') {
+        return Promise.resolve({
+          nestLayout: {
+            schemaVersion: '1.0.0',
+            canvas: { width: 100, height: 80 },
+            layers: [
+              {
+                id: 'missing',
+                type: 'image',
+                src: 'assets/missing.png',
+                frame: { x: 0, y: 0, width: 100, height: 80 },
+              },
+            ],
+          },
+          missingAssets: ['assets/missing.png'],
+        });
+      }
+      if (command === 'get_codex_state') {
+        return Promise.resolve({
+          overlay_bounds: null,
+          avatar_overlay_open: true,
+          state_available: true,
+          diagnostic: 'test',
+          codex_home: '/tmp/.codex',
+        });
+      }
+      if (command === 'set_overlay_click_through') return Promise.resolve(undefined);
+      return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
+    });
+
+    render(<OverlayApp />);
+
+    expect(
+      await screen.findByText(/Missing local assets: assets\/missing.png/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('nest-render-model')).toBeInTheDocument();
+  });
+
   it('should receive pointer events on drag bar and start manual fallback drag', async () => {
     vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
       startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),

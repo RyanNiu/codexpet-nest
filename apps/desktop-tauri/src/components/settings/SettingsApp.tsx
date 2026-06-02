@@ -4,6 +4,7 @@ import type { OverlayMode } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import {
   getEnabledNestEntries,
+  getNestEntries,
   resolveActiveNestEntry,
   useRegistryStore,
 } from '@/store/registryStore';
@@ -14,7 +15,13 @@ const overlayModeOptions: OverlayMode[] = ['follow-codex', 'standalone-fixed'];
 
 export function SettingsApp() {
   const { config, isLoading, error } = useAppConfigStore();
-  const { registry, isLoading: registryLoading, error: registryError } = useRegistryStore();
+  const {
+    registry,
+    isLoading: registryLoading,
+    isSaving: registrySaving,
+    error: registryError,
+    importPackage,
+  } = useRegistryStore();
   const {
     settings,
     isLoading: settingsLoading,
@@ -24,7 +31,10 @@ export function SettingsApp() {
   } = useSettingsStore();
   const [overlayVisible, setOverlayVisible] = useState<boolean | null>(null);
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
+  const [importPath, setImportPath] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
 
+  const allNestEntries = getNestEntries(registry);
   const nestEntries = getEnabledNestEntries(registry);
   const { entry: activeNestEntry, fallback: nestFallback } = resolveActiveNestEntry(
     registry,
@@ -72,6 +82,18 @@ export function SettingsApp() {
         await invoke('set_overlay_click_through', { enabled: previous }).catch(() => undefined);
       }
       setOverlayControlError(String(transactionError));
+    }
+  };
+
+  const importLocalPackage = async () => {
+    const trimmed = importPath.trim();
+    if (!trimmed) return;
+    setImportError(null);
+    try {
+      await importPackage(trimmed);
+      setImportPath('');
+    } catch (importFailure) {
+      setImportError(String(importFailure));
     }
   };
 
@@ -197,6 +219,28 @@ export function SettingsApp() {
             <p style={{ ...descriptionStyle, marginBottom: 12 }}>
               Select the active nest from the local package registry.
             </p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+              <input
+                aria-label="Local package directory"
+                value={importPath}
+                onChange={(event) => setImportPath(event.currentTarget.value)}
+                placeholder="/path/to/local/nest-package"
+                style={{ ...selectStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                style={primaryButtonStyle}
+                onClick={() => void importLocalPackage()}
+                disabled={registrySaving || importPath.trim().length === 0}
+              >
+                {registrySaving ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+            {importError && (
+              <p role="alert" style={{ color: '#b91c1c', margin: '0 0 12px' }}>
+                Import error: {importError}
+              </p>
+            )}
             <label style={{ ...fieldStyle, marginBottom: 12 }}>
               <span style={labelStyle}>Active nest</span>
               <select
@@ -220,15 +264,20 @@ export function SettingsApp() {
               </p>
             )}
             <div style={{ display: 'grid', gap: 8 }}>
-              {nestEntries.map((entry) => (
+              {allNestEntries.map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
-                  onClick={() => update({ activeNestId: entry.id }).catch(() => undefined)}
+                  onClick={() => {
+                    if (entry.enabled) update({ activeNestId: entry.id }).catch(() => undefined);
+                  }}
+                  disabled={!entry.enabled}
                   style={{
                     ...packageRowStyle,
                     borderColor: activeNestId === entry.id ? '#2563eb' : '#e2e8f0',
                     background: activeNestId === entry.id ? '#eff6ff' : '#ffffff',
+                    cursor: entry.enabled ? 'pointer' : 'not-allowed',
+                    opacity: entry.enabled ? 1 : 0.68,
                   }}
                 >
                   <span style={{ fontWeight: 800 }}>{entry.name}</span>

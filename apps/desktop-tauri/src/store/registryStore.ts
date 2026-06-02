@@ -17,6 +17,7 @@ interface RegistryState {
   error: string | null;
   load: () => Promise<void>;
   save: (registry: LocalPackageRegistry) => Promise<void>;
+  importPackage: (importPath: string) => Promise<void>;
 }
 
 export const builtInNestRegistryEntries: LocalPackageEntry[] = builtInNestFixtures
@@ -51,7 +52,12 @@ export const useRegistryStore = create<RegistryState>((set) => ({
       const registry = mergeBuiltInEntries(result.registry);
       set({ registry, isLoading: false, error: null });
 
-      if (raw === null || result.migrated || result.usedFallback || registry !== result.registry) {
+      if (
+        raw === null ||
+        result.migrated ||
+        result.usedFallback ||
+        !registriesEqual(registry, result.registry)
+      ) {
         await invoke('save_local_registry', { registry });
       }
     } catch (error) {
@@ -73,10 +79,26 @@ export const useRegistryStore = create<RegistryState>((set) => ({
       throw error;
     }
   },
+  importPackage: async (importPath) => {
+    set({ isSaving: true, error: null });
+    try {
+      const raw = await invoke<unknown>('import_local_package', { importPath });
+      const result = loadPackageRegistry(raw);
+      const registry = mergeBuiltInEntries(result.registry);
+      set({ registry, isSaving: false, error: null });
+    } catch (error) {
+      set({ isSaving: false, error: String(error) });
+      throw error;
+    }
+  },
 }));
 
+export function getNestEntries(registry: LocalPackageRegistry): LocalPackageEntry[] {
+  return registry.packages.filter((entry) => entry.type === 'nest');
+}
+
 export function getEnabledNestEntries(registry: LocalPackageRegistry): LocalPackageEntry[] {
-  return registry.packages.filter((entry) => entry.type === 'nest' && entry.enabled);
+  return getNestEntries(registry).filter((entry) => entry.enabled);
 }
 
 export function resolveActiveNestEntry(
@@ -105,4 +127,8 @@ function mergeBuiltInEntries(registry: LocalPackageRegistry): LocalPackageRegist
     ...registry,
     packages: Array.from(byId.values()),
   };
+}
+
+function registriesEqual(left: LocalPackageRegistry, right: LocalPackageRegistry): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
