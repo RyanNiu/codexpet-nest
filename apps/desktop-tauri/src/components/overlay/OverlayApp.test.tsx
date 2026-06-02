@@ -5,15 +5,24 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { createDefaultSettings } from '@codexpet/core';
 import { OverlayApp } from './OverlayApp';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { builtInNestRegistryEntries, useRegistryStore } from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { FALLBACK_CONFIG } from '@/config';
 
 describe('OverlayApp', () => {
+  const registry = { schemaVersion: 1, packages: builtInNestRegistryEntries };
+
   beforeEach(() => {
     // Reset store to loading state before each test.
     useAppConfigStore.setState({
       config: FALLBACK_CONFIG,
       isLoading: true,
+      error: null,
+    });
+    useRegistryStore.setState({
+      registry,
+      isLoading: true,
+      isSaving: false,
       error: null,
     });
     useSettingsStore.setState({
@@ -35,6 +44,7 @@ describe('OverlayApp', () => {
       appName: 'CodexPet',
       isDebug: false, // explicitly false to test non-debug path
     });
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
     expect(screen.getByTestId('nest-render-model')).toBeInTheDocument();
@@ -48,6 +58,7 @@ describe('OverlayApp', () => {
       ...FALLBACK_CONFIG,
       isDebug: true,
     });
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
@@ -67,6 +78,7 @@ describe('OverlayApp', () => {
       ...FALLBACK_CONFIG,
       isDebug: undefined as unknown as boolean, // simulate missing field
     });
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
@@ -78,6 +90,7 @@ describe('OverlayApp', () => {
 
   it('should switch built-in nest fixture in the overlay', async () => {
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
@@ -90,6 +103,7 @@ describe('OverlayApp', () => {
 
   it('should render saved built-in nest and overlay mode', async () => {
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({
       settings: {
         ...createDefaultSettings(),
@@ -106,11 +120,32 @@ describe('OverlayApp', () => {
     expect(await screen.findByText(/standalone-fixed from local settings/)).toBeInTheDocument();
   });
 
+  it('should fallback to default when saved active nest is not in registry', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({
+      settings: {
+        ...createDefaultSettings(),
+        activeNestId: 'missing-nest',
+      },
+      isLoading: false,
+    });
+
+    render(<OverlayApp />);
+
+    expect(screen.getAllByText('default').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Registry fallback: missing-nest -> default/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/registry fallback missing-nest -> default/),
+    ).toBeInTheDocument();
+  });
+
   it('should receive pointer events on drag bar and start manual fallback drag', async () => {
     vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
       startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),
     } as unknown as ReturnType<typeof getCurrentWebviewWindow>);
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 

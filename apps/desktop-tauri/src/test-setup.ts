@@ -3,8 +3,9 @@ import { beforeEach, vi } from 'vitest';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import { FALLBACK_CONFIG } from '@/config';
 import { useDebugStore } from '@/store/debugStore';
+import { builtInNestRegistryEntries, useRegistryStore } from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
-import { createDefaultSettings } from '@codexpet/core';
+import { createDefaultPackageRegistry, createDefaultSettings } from '@codexpet/core';
 
 Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
   configurable: true,
@@ -51,7 +52,17 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 
 beforeEach(async () => {
   const fallbackSettings = createDefaultSettings();
+  const fallbackRegistry = {
+    ...createDefaultPackageRegistry(),
+    packages: builtInNestRegistryEntries,
+  };
   useAppConfigStore.setState({ config: FALLBACK_CONFIG, isLoading: true, error: null });
+  useRegistryStore.setState({
+    registry: fallbackRegistry,
+    isLoading: true,
+    isSaving: false,
+    error: null,
+  });
   useSettingsStore.setState({
     settings: fallbackSettings,
     isLoading: true,
@@ -78,6 +89,10 @@ beforeEach(async () => {
       case 'load_local_settings':
         return Promise.resolve(fallbackSettings);
       case 'save_local_settings':
+        return Promise.resolve(undefined);
+      case 'load_local_registry':
+        return Promise.resolve(fallbackRegistry);
+      case 'save_local_registry':
         return Promise.resolve(undefined);
       case 'get_codex_state':
         return Promise.resolve(codexState);

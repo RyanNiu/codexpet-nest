@@ -5,6 +5,11 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import {
+  getEnabledNestEntries,
+  resolveActiveNestEntry,
+  useRegistryStore,
+} from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { CodexStateDebug, ConvertedPosition, ScreenInfo } from '@/store/debugStore';
 import { NestOverlayView } from './NestOverlayView';
@@ -32,8 +37,14 @@ const initialDragDiagnostics: DragDiagnostics = {
 
 export function OverlayApp() {
   const { config, isLoading } = useAppConfigStore();
+  const { registry, isLoading: registryLoading } = useRegistryStore();
   const { settings, isLoading: settingsLoading, update: updateSettings } = useSettingsStore();
-  const selectedNestId = settings.activeNestId ?? builtInNestFixtures[0]?.id ?? 'default';
+  const registryNests = getEnabledNestEntries(registry);
+  const { entry: selectedNestEntry, fallback: nestFallback } = resolveActiveNestEntry(
+    registry,
+    settings.activeNestId,
+  );
+  const selectedNestId = selectedNestEntry?.id ?? builtInNestFixtures[0]?.id ?? 'default';
   const overlayMode = settings.overlayMode;
   const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
   const [dragDiagnostics, setDragDiagnostics] = useState<DragDiagnostics>(initialDragDiagnostics);
@@ -51,12 +62,16 @@ export function OverlayApp() {
   }, [dragDiagnostics]);
 
   useEffect(() => {
-    if (isLoading || settingsLoading) return;
+    if (isLoading || settingsLoading || registryLoading) return;
     invoke('set_overlay_click_through', { enabled: settings.clickThrough }).catch(() => undefined);
-  }, [isLoading, settings.clickThrough, settingsLoading]);
+  }, [isLoading, registryLoading, settings.clickThrough, settingsLoading]);
 
   useEffect(() => {
-    if (isLoading || settingsLoading) return;
+    if (isLoading || settingsLoading || registryLoading) return;
+    if (nestFallback && settings.activeNestId) {
+      setRuntimeStatus(`Runtime: registry fallback ${settings.activeNestId} -> ${selectedNestId}`);
+      return;
+    }
     if (settings.overlayMode === 'standalone-fixed') {
       setRuntimeStatus('Runtime: standalone-fixed from local settings');
       return;
@@ -100,9 +115,17 @@ export function OverlayApp() {
     return () => {
       cancelled = true;
     };
-  }, [isLoading, settings.overlayMode, settingsLoading]);
+  }, [
+    isLoading,
+    nestFallback,
+    registryLoading,
+    selectedNestId,
+    settings.activeNestId,
+    settings.overlayMode,
+    settingsLoading,
+  ]);
 
-  if (isLoading || settingsLoading) {
+  if (isLoading || settingsLoading || registryLoading) {
     return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
   }
 
@@ -306,22 +329,22 @@ export function OverlayApp() {
       </div>
 
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', gap: 4 }}>
-        {builtInNestFixtures.slice(0, 3).map((fixture) => (
+        {registryNests.slice(0, 3).map((entry) => (
           <button
-            key={fixture.id}
+            key={entry.id}
             type="button"
-            onClick={() => updateSettings({ activeNestId: fixture.id }).catch(() => undefined)}
+            onClick={() => updateSettings({ activeNestId: entry.id }).catch(() => undefined)}
             style={{
               fontSize: 9,
               border: '1px solid rgba(255,255,255,0.5)',
               borderRadius: 4,
-              background: selectedNestId === fixture.id ? '#ffffff' : 'rgba(0,0,0,0.45)',
-              color: selectedNestId === fixture.id ? '#111' : '#fff',
+              background: selectedNestId === entry.id ? '#ffffff' : 'rgba(0,0,0,0.45)',
+              color: selectedNestId === entry.id ? '#111' : '#fff',
               padding: '2px 4px',
               cursor: 'pointer',
             }}
           >
-            {fixture.id.replace('-nest', '')}
+            {entry.id.replace('-nest', '')}
           </button>
         ))}
       </div>
@@ -334,6 +357,11 @@ export function OverlayApp() {
         <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.82, marginTop: -4 }}>
           {config.appName || 'CodexPet'} v{config.version} · mode: {overlayMode}
         </div>
+        {nestFallback && settings.activeNestId && (
+          <div style={{ textAlign: 'center', fontSize: 9, color: '#ffcc00', opacity: 0.9 }}>
+            Registry fallback: {settings.activeNestId} {'->'} {selectedNestId}
+          </div>
+        )}
         <div style={{ textAlign: 'center', fontSize: 9, opacity: 0.72 }}>{runtimeStatus}</div>
         {isDevOverlay && (
           <div

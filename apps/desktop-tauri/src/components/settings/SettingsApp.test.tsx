@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { createDefaultSettings } from '@codexpet/core';
 import { SettingsApp } from './SettingsApp';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { builtInNestRegistryEntries, useRegistryStore } from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { FALLBACK_CONFIG } from '@/config';
 
@@ -12,6 +13,8 @@ vi.mock('@/components/debug/DebugPanel', () => ({
 }));
 
 describe('SettingsApp', () => {
+  const registry = { schemaVersion: 1, packages: builtInNestRegistryEntries };
+
   it('should show loading state', async () => {
     render(<SettingsApp />);
     expect(screen.getByText('Loading configuration...')).toBeInTheDocument();
@@ -20,12 +23,16 @@ describe('SettingsApp', () => {
 
   it('should render config details when loaded', async () => {
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<SettingsApp />);
     expect(screen.getByRole('heading', { name: /Settings/i })).toBeInTheDocument();
     expect(screen.getByText(/Version: 0.1.12/)).toBeInTheDocument();
     expect(screen.getByLabelText('Overlay mode')).toHaveValue('follow-codex');
-    expect(screen.getByLabelText('Built-in nest')).toHaveValue('default');
+    expect(screen.getByLabelText('Active nest')).toHaveValue('default');
+    expect(screen.getByRole('heading', { name: 'Local Packages / Nests' })).toBeInTheDocument();
+    expect(screen.getAllByText('Capacity Orbit Nest').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('nest').length).toBeGreaterThan(0);
     await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible'));
   });
 
@@ -38,6 +45,7 @@ describe('SettingsApp', () => {
 
   it('should save settings when nest and mode are changed', async () => {
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<SettingsApp />);
 
@@ -53,7 +61,7 @@ describe('SettingsApp', () => {
       );
     });
 
-    fireEvent.change(screen.getByLabelText('Built-in nest'), {
+    fireEvent.change(screen.getByLabelText('Active nest'), {
       target: { value: 'basket-pomodoro-nest' },
     });
     await waitFor(() => {
@@ -69,6 +77,7 @@ describe('SettingsApp', () => {
   it('should not save click-through when native command fails', async () => {
     const previous = createDefaultSettings();
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: previous, isLoading: false });
     vi.mocked(invoke).mockImplementation((command) => {
       if (command === 'set_overlay_click_through') {

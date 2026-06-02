@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { builtInNestFixtures } from '@codexpet/renderer/fixtures/nests';
 import type { OverlayMode } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import {
+  getEnabledNestEntries,
+  resolveActiveNestEntry,
+  useRegistryStore,
+} from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { DebugPanel } from '@/components/debug/DebugPanel';
 
@@ -10,6 +14,7 @@ const overlayModeOptions: OverlayMode[] = ['follow-codex', 'standalone-fixed'];
 
 export function SettingsApp() {
   const { config, isLoading, error } = useAppConfigStore();
+  const { registry, isLoading: registryLoading, error: registryError } = useRegistryStore();
   const {
     settings,
     isLoading: settingsLoading,
@@ -20,7 +25,12 @@ export function SettingsApp() {
   const [overlayVisible, setOverlayVisible] = useState<boolean | null>(null);
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
 
-  const activeNestId = settings.activeNestId ?? builtInNestFixtures[0]?.id ?? '';
+  const nestEntries = getEnabledNestEntries(registry);
+  const { entry: activeNestEntry, fallback: nestFallback } = resolveActiveNestEntry(
+    registry,
+    settings.activeNestId,
+  );
+  const activeNestId = activeNestEntry?.id ?? '';
 
   useEffect(() => {
     invoke<boolean>('is_overlay_visible')
@@ -87,7 +97,7 @@ export function SettingsApp() {
         </p>
       </header>
 
-      {(isLoading || settingsLoading) && <p>Loading configuration...</p>}
+      {(isLoading || settingsLoading || registryLoading) && <p>Loading configuration...</p>}
       {error && (
         <p role="alert" style={{ color: '#b91c1c' }}>
           App config error: {error}
@@ -98,13 +108,18 @@ export function SettingsApp() {
           Settings error: {settingsError}
         </p>
       )}
+      {registryError && (
+        <p role="alert" style={{ color: '#b91c1c' }}>
+          Registry error: {registryError}
+        </p>
+      )}
       {overlayControlError && (
         <p role="alert" style={{ color: '#b91c1c' }}>
           Overlay control error: {overlayControlError}
         </p>
       )}
 
-      {!isLoading && !settingsLoading && !error && (
+      {!isLoading && !settingsLoading && !registryLoading && !error && (
         <main
           style={{
             display: 'grid',
@@ -169,29 +184,62 @@ export function SettingsApp() {
                   ))}
                 </select>
               </label>
-              <label style={fieldStyle}>
-                <span style={labelStyle}>Built-in nest</span>
-                <select
-                  aria-label="Built-in nest"
-                  value={activeNestId}
-                  onChange={(event) =>
-                    update({ activeNestId: event.currentTarget.value }).catch(() => undefined)
-                  }
-                  style={selectStyle}
-                >
-                  {builtInNestFixtures.map((fixture) => (
-                    <option key={fixture.id} value={fixture.id}>
-                      {fixture.packageManifest.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
             <p style={{ ...descriptionStyle, marginTop: 12 }}>
               {isSaving
                 ? 'Saving settings...'
                 : `Saved locally to ${config.dataDirectory}/settings.json`}
             </p>
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Local Packages / Nests</h2>
+            <p style={{ ...descriptionStyle, marginBottom: 12 }}>
+              Select the active nest from the local package registry.
+            </p>
+            <label style={{ ...fieldStyle, marginBottom: 12 }}>
+              <span style={labelStyle}>Active nest</span>
+              <select
+                aria-label="Active nest"
+                value={activeNestId}
+                onChange={(event) =>
+                  update({ activeNestId: event.currentTarget.value }).catch(() => undefined)
+                }
+                style={selectStyle}
+              >
+                {nestEntries.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {nestFallback && settings.activeNestId && (
+              <p style={{ ...descriptionStyle, color: '#b45309', marginBottom: 10 }}>
+                Saved nest `{settings.activeNestId}` is unavailable. Using `{activeNestId}`.
+              </p>
+            )}
+            <div style={{ display: 'grid', gap: 8 }}>
+              {nestEntries.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => update({ activeNestId: entry.id }).catch(() => undefined)}
+                  style={{
+                    ...packageRowStyle,
+                    borderColor: activeNestId === entry.id ? '#2563eb' : '#e2e8f0',
+                    background: activeNestId === entry.id ? '#eff6ff' : '#ffffff',
+                  }}
+                >
+                  <span style={{ fontWeight: 800 }}>{entry.name}</span>
+                  <span style={descriptionStyle}>v{entry.version}</span>
+                  <span style={descriptionStyle}>{entry.type}</span>
+                  <span style={{ ...pillStyle, color: entry.enabled ? '#047857' : '#b91c1c' }}>
+                    {entry.enabled ? 'enabled' : 'disabled'}
+                  </span>
+                </button>
+              ))}
+            </div>
           </section>
 
           <section style={cardStyle}>
@@ -270,4 +318,17 @@ const pillStyle: React.CSSProperties = {
   padding: '5px 10px',
   fontSize: 12,
   fontWeight: 800,
+};
+const packageRowStyle: React.CSSProperties = {
+  width: '100%',
+  display: 'grid',
+  gridTemplateColumns: '1fr auto auto auto',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  padding: '10px 12px',
+  color: '#18202f',
+  textAlign: 'left',
+  cursor: 'pointer',
 };

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
+import { useRegistryStore } from '@/store/registryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { AppConfig } from '@/config';
 import type { ReactNode } from 'react';
@@ -11,6 +12,7 @@ interface Props {
 
 export function ConfigProvider({ children }: Props) {
   const { setConfig, setError } = useAppConfigStore();
+  const loadRegistry = useRegistryStore((state) => state.load);
   const loadSettings = useSettingsStore((state) => state.load);
 
   useEffect(() => {
@@ -23,8 +25,9 @@ export function ConfigProvider({ children }: Props) {
   }, [setConfig, setError]);
 
   useEffect(() => {
+    void loadRegistry();
     void loadSettings();
-  }, [loadSettings]);
+  }, [loadRegistry, loadSettings]);
 
   return <>{children}</>;
 }
