@@ -312,4 +312,17 @@ mod tests {
         assert!(!state.state_available);
         assert!(!state.avatar_overlay_open);
     }
+
+    #[test]
+    fn test_parse_invalid_state_json_reports_unavailable() {
+        let state = parse_state_json(
+            "not-json",
+            "/home/.codex",
+            &PathBuf::from("/home/.codex/.codex-global-state.json"),
+        );
+
+        assert!(!state.state_available);
+        assert!(state.overlay_bounds.is_none());
+        assert!(state.diagnostic.contains("Failed to parse"));
+    }
 }

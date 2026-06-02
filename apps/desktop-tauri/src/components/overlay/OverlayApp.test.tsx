@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { createDefaultSettings } from '@codexpet/core';
@@ -52,7 +52,7 @@ describe('OverlayApp', () => {
     expect(screen.getByText(/Usage 68%/)).toBeInTheDocument();
     expect(screen.getByTestId('quick-actions')).toBeInTheDocument();
     expect(screen.getByText(/v0.1.12/)).toBeInTheDocument();
-    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
   });
 
   it('should execute quick action and show result', async () => {
@@ -77,7 +77,7 @@ describe('OverlayApp', () => {
     useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
-    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Codex Path' }));
 
@@ -107,7 +107,7 @@ describe('OverlayApp', () => {
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
     expect(screen.getByTestId('overlay-drag-region')).toHaveAttribute('data-tauri-drag-region');
     expect(screen.getByText('Drag Overlay')).toBeInTheDocument();
-    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
   });
 
   it('should render debug overlay elements in DEV mode even if isDebug is not set', async () => {
@@ -123,7 +123,7 @@ describe('OverlayApp', () => {
     // import.meta.env.DEV is true in vitest, so debug elements must render.
     expect(screen.getByTestId('debug-overlay-label')).toBeInTheDocument();
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
-    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
   });
 
   it('should switch built-in nest fixture in the overlay', async () => {
@@ -136,7 +136,7 @@ describe('OverlayApp', () => {
 
     expect(await screen.findByText('capacity-orbit-nest')).toBeInTheDocument();
     expect(await screen.findByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
-    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
   });
 
   it('should render saved built-in nest and overlay mode', async () => {
@@ -155,7 +155,7 @@ describe('OverlayApp', () => {
 
     expect(screen.getByText('basket-pomodoro-nest')).toBeInTheDocument();
     expect(screen.getByText(/mode: standalone-fixed/)).toBeInTheDocument();
-    expect(await screen.findByText(/standalone-fixed from local settings/)).toBeInTheDocument();
+    expect(await screen.findByText(/standalone-fixed from saved position/)).toBeInTheDocument();
   });
 
   it('should fallback to default when saved active nest is not in registry', async () => {
@@ -226,6 +226,9 @@ describe('OverlayApp', () => {
         });
       }
       if (command === 'set_overlay_click_through') return Promise.resolve(undefined);
+      if (command === 'move_overlay_to_clamped') {
+        return Promise.resolve({ x: 100, y: 100, display_index: 0 });
+      }
       return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
     });
 
@@ -260,5 +263,88 @@ describe('OverlayApp', () => {
     expect(await screen.findByText('mouse down: 1')).toBeInTheDocument();
     expect(await screen.findByText('mode: manual-fallback')).toBeInTheDocument();
     expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_overlay_position');
+  });
+
+  it('should move overlay from Codex mascot bounds in follow mode', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'get_codex_state') {
+        return Promise.resolve({
+          avatar_overlay_open: true,
+          overlay_bounds: {
+            x: 100,
+            y: 120,
+            width: 356,
+            height: 320,
+            display_x: 0,
+            display_y: 0,
+            display_width: 1920,
+            display_height: 1080,
+            mascot: { left: 20, top: 30, width: 120, height: 100 },
+          },
+          state_available: true,
+          diagnostic: 'test',
+          codex_home: '/tmp/.codex',
+        });
+      }
+      if (command === 'get_screen_list') {
+        return Promise.resolve([
+          { x: 0, y: 0, width: 1920, height: 1080, scale_factor: 2, is_primary: true },
+        ]);
+      }
+      if (command === 'convert_position') {
+        return Promise.resolve({ x: 128, y: 75, scale_factor: 2, display_index: 0 });
+      }
+      if (command === 'move_overlay_to_clamped') {
+        return Promise.resolve({ x: 256, y: 150, display_index: 0 });
+      }
+      if (command === 'set_overlay_click_through') return Promise.resolve(undefined);
+      return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
+    });
+
+    render(<OverlayApp />);
+
+    expect(await screen.findByText(/follow-codex x=256, y=150/)).toBeInTheDocument();
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('move_overlay_to_clamped', { x: 256, y: 150 });
+  });
+
+  it('should persist manual position after standalone drag fallback', async () => {
+    vi.mocked(getCurrentWebviewWindow).mockReturnValueOnce({
+      startDragging: vi.fn().mockRejectedValueOnce(new Error('native drag unavailable')),
+    } as unknown as ReturnType<typeof getCurrentWebviewWindow>);
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({
+      settings: { ...createDefaultSettings(), overlayMode: 'standalone-fixed' },
+      isLoading: false,
+    });
+    render(<OverlayApp />);
+
+    const dragRegion = screen.getByTestId('overlay-drag-region');
+    const pointerDown = new MouseEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      screenX: 120,
+      screenY: 140,
+    });
+    Object.defineProperty(pointerDown, 'pointerId', { value: 1 });
+    const pointerUp = new MouseEvent('pointerup', { bubbles: true, cancelable: true });
+    Object.defineProperty(pointerUp, 'pointerId', { value: 1 });
+
+    fireEvent(dragRegion, pointerDown);
+    fireEvent(dragRegion, pointerUp);
+
+    expect(await screen.findByText('mode: manual-fallback')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        'save_local_settings',
+        expect.objectContaining({
+          settings: expect.objectContaining({ standalonePosition: { x: 100, y: 100 } }),
+        }),
+      );
+    });
   });
 });

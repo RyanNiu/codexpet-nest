@@ -24,6 +24,13 @@ pub struct ConvertedPosition {
     pub display_index: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ClampedPosition {
+    pub x: i32,
+    pub y: i32,
+    pub display_index: usize,
+}
+
 /// Convert Codex overlay bounds (top-left coordinates in Codex space)
 /// to Tauri window logical coordinates for the nest overlay.
 ///
@@ -78,6 +85,23 @@ pub fn convert_codex_to_nest_position(
     }
 }
 
+pub fn clamp_position_to_screens(
+    x: i32,
+    y: i32,
+    window_width: i32,
+    window_height: i32,
+    screens: &[ScreenInfo],
+) -> ClampedPosition {
+    let (display_index, screen) = find_screen_for_physical_position(x, y, screens);
+    let max_x = screen.x + screen.width - window_width.max(1);
+    let max_y = screen.y + screen.height - window_height.max(1);
+    ClampedPosition {
+        x: x.clamp(screen.x, max_x.max(screen.x)),
+        y: y.clamp(screen.y, max_y.max(screen.y)),
+        display_index,
+    }
+}
+
 /// Find which screen contains the given (x, y) position.
 ///
 /// Returns (index, screen). If no screen contains the position,
@@ -102,6 +126,44 @@ fn find_screen_for_position(x: f64, y: f64, screens: &[ScreenInfo]) -> (usize, &
     } else {
         // No screens available — return a default
         // This shouldn't happen in practice but provides a safe fallback
+        panic!("No screens available for coordinate conversion");
+    }
+}
+
+fn distance_to_physical_screen(x: i32, y: i32, screen: &ScreenInfo) -> i64 {
+    let closest_x = x.clamp(screen.x, screen.x + screen.width);
+    let closest_y = y.clamp(screen.y, screen.y + screen.height);
+    let dx = i64::from(x - closest_x);
+    let dy = i64::from(y - closest_y);
+    dx * dx + dy * dy
+}
+
+fn find_screen_for_physical_position(
+    x: i32,
+    y: i32,
+    screens: &[ScreenInfo],
+) -> (usize, &ScreenInfo) {
+    for (i, screen) in screens.iter().enumerate() {
+        let right = screen.x + screen.width;
+        let bottom = screen.y + screen.height;
+        if x >= screen.x && x < right && y >= screen.y && y < bottom {
+            return (i, screen);
+        }
+    }
+    if let Some(pos) = screens.iter().position(|s| s.is_primary) {
+        let mut nearest = pos;
+        let mut nearest_distance = distance_to_physical_screen(x, y, &screens[pos]);
+        for (i, screen) in screens.iter().enumerate() {
+            let distance = distance_to_physical_screen(x, y, screen);
+            if distance < nearest_distance {
+                nearest = i;
+                nearest_distance = distance;
+            }
+        }
+        (nearest, &screens[nearest])
+    } else if !screens.is_empty() {
+        (0, &screens[0])
+    } else {
         panic!("No screens available for coordinate conversion");
     }
 }
@@ -221,5 +283,45 @@ mod tests {
         let result = convert_codex_to_nest_position(10000.0, 10000.0, 356.0, 320.0, &screens, 1.0);
         assert_eq!(result.display_index, 0);
         assert!(result.scale_factor == 1.0);
+    }
+
+    #[test]
+    fn test_clamp_position_on_retina_primary_screen() {
+        let screens = vec![ScreenInfo {
+            x: 0,
+            y: 0,
+            width: 3024,
+            height: 1964,
+            scale_factor: 2.0,
+            is_primary: true,
+        }];
+
+        let result = clamp_position_to_screens(3000, 1900, 480, 260, &screens);
+
+        assert_eq!(result.display_index, 0);
+        assert_eq!(result.x, 2544);
+        assert_eq!(result.y, 1704);
+    }
+
+    #[test]
+    fn test_clamp_position_preserves_secondary_monitor_bounds() {
+        let screens = make_screens();
+
+        let result = clamp_position_to_screens(-2100, 1200, 480, 260, &screens);
+
+        assert_eq!(result.display_index, 1);
+        assert_eq!(result.x, -1920);
+        assert_eq!(result.y, 996);
+    }
+
+    #[test]
+    fn test_clamp_position_outside_monitors_uses_primary() {
+        let screens = make_screens();
+
+        let result = clamp_position_to_screens(9000, 9000, 480, 260, &screens);
+
+        assert_eq!(result.display_index, 0);
+        assert_eq!(result.x, 1440);
+        assert_eq!(result.y, 820);
     }
 }

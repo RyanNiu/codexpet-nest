@@ -46,4 +46,25 @@ describe('DebugPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Overlay window not found');
   });
+
+  it('shows overlay follow diagnostics from local debug state', async () => {
+    window.localStorage.setItem(
+      'codexpet.overlay.followDiagnostics',
+      JSON.stringify({
+        runtimeMode: 'follow-codex',
+        lastCodexStateReadAt: '2026-06-02T00:00:00.000Z',
+        lastTargetPosition: 'x=256, y=150',
+        followLoopActive: true,
+        lastMoveFailure: 'none',
+      }),
+    );
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+
+    render(<DebugPanel />);
+
+    expect(await screen.findByText('follow-codex')).toBeInTheDocument();
+    expect(screen.getByText('2026-06-02T00:00:00.000Z')).toBeInTheDocument();
+    expect(screen.getByText('x=256, y=150')).toBeInTheDocument();
+    expect(screen.getByText(/Last follow move failure: none/)).toBeInTheDocument();
+  });
 });

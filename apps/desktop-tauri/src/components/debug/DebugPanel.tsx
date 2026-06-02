@@ -17,6 +17,16 @@ interface OverlayDragDiagnostics {
   lastDragError: string | null;
 }
 
+interface OverlayFollowDiagnostics {
+  runtimeMode: string;
+  lastCodexStateReadAt: string | null;
+  lastTargetPosition: string | null;
+  followLoopActive: boolean;
+  lastMoveFailure: string | null;
+}
+
+const FOLLOW_DIAGNOSTICS_KEY = 'codexpet.overlay.followDiagnostics';
+
 export function DebugPanel() {
   const {
     codexState,
@@ -41,6 +51,7 @@ export function DebugPanel() {
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
   const [overlayPosition, setOverlayPosition] = useState<OverlayPosition | null>(null);
   const [dragDiagnostics, setDragDiagnostics] = useState<OverlayDragDiagnostics | null>(null);
+  const [followDiagnostics, setFollowDiagnostics] = useState<OverlayFollowDiagnostics | null>(null);
 
   const refreshDragDiagnostics = useCallback(() => {
     const raw = window.localStorage.getItem('codexpet.overlay.dragDiagnostics');
@@ -58,6 +69,22 @@ export function DebugPanel() {
     }
   }, []);
 
+  const refreshFollowDiagnostics = useCallback(() => {
+    const raw = window.localStorage.getItem(FOLLOW_DIAGNOSTICS_KEY);
+    if (!raw) return;
+    try {
+      setFollowDiagnostics(JSON.parse(raw) as OverlayFollowDiagnostics);
+    } catch {
+      setFollowDiagnostics({
+        runtimeMode: 'parse-error',
+        lastCodexStateReadAt: null,
+        lastTargetPosition: null,
+        followLoopActive: false,
+        lastMoveFailure: raw,
+      });
+    }
+  }, []);
+
   const refreshOverlayPosition = useCallback(() => {
     invoke<OverlayPosition>('get_overlay_position')
       .then((position) => {
@@ -66,7 +93,8 @@ export function DebugPanel() {
       })
       .catch((e) => setOverlayControlError(String(e)));
     refreshDragDiagnostics();
-  }, [refreshDragDiagnostics]);
+    refreshFollowDiagnostics();
+  }, [refreshDragDiagnostics, refreshFollowDiagnostics]);
 
   const refreshOverlayVisible = useCallback(() => {
     invoke<boolean>('is_overlay_visible')
@@ -322,6 +350,25 @@ export function DebugPanel() {
           <span style={style.label}> | Active: </span>
           <span style={style.value}>{String(dragDiagnostics?.draggingActive ?? false)}</span>
         </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Runtime Mode: </span>
+          <span style={style.value}>{followDiagnostics?.runtimeMode ?? 'unknown'}</span>
+          <span style={style.label}> | Follow Loop: </span>
+          <span style={style.value}>{String(followDiagnostics?.followLoopActive ?? false)}</span>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Last Codex Read: </span>
+          <span style={style.value}>{followDiagnostics?.lastCodexStateReadAt ?? 'none'}</span>
+        </div>
+        <div style={{ fontSize: 12, marginBottom: 4 }}>
+          <span style={style.label}>Last Target Position: </span>
+          <span style={style.value}>{followDiagnostics?.lastTargetPosition ?? 'none'}</span>
+        </div>
+        {followDiagnostics?.lastMoveFailure && (
+          <p style={{ color: 'red', fontSize: 12, margin: '4px 0' }}>
+            Last follow move failure: {followDiagnostics.lastMoveFailure}
+          </p>
+        )}
         <div style={{ fontSize: 12, marginBottom: 4 }}>
           <span style={style.label}>Mouse Down Count: </span>
           <span style={style.value}>{dragDiagnostics?.mouseDownCount ?? 0}</span>

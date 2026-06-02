@@ -52,6 +52,7 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
 }));
 
 beforeEach(async () => {
+  window.localStorage.clear();
   const fallbackSettings = createDefaultSettings();
   const fallbackRegistry = {
     ...createDefaultPackageRegistry(),
@@ -125,6 +126,8 @@ beforeEach(async () => {
         return Promise.resolve({ x: 100, y: 100 });
       case 'convert_position':
         return Promise.resolve({ x: 0, y: 0, scale_factor: 1, display_index: 0 });
+      case 'move_overlay_to_clamped':
+        return Promise.resolve({ x: 100, y: 100, display_index: 0 });
       case 'show_overlay':
       case 'hide_overlay':
       case 'reset_overlay_position':

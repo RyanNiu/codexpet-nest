@@ -4,7 +4,11 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
-import { validateWidgetActionConfig } from '@codexpet/core';
+import {
+  getOverlayRuntimeDecision,
+  persistStandalonePosition,
+  validateWidgetActionConfig,
+} from '@codexpet/core';
 import type { ActionPlatform, QuickActionSettings } from '@codexpet/core';
 import type { NestLayoutManifest } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
@@ -20,6 +24,18 @@ import { NestOverlayView } from './NestOverlayView';
 interface OverlayPosition {
   x: number;
   y: number;
+}
+
+interface ClampedPosition extends OverlayPosition {
+  display_index: number;
+}
+
+interface OverlayFollowDiagnostics {
+  runtimeMode: string;
+  lastCodexStateReadAt: string | null;
+  lastTargetPosition: string | null;
+  followLoopActive: boolean;
+  lastMoveFailure: string | null;
 }
 
 interface DragDiagnostics {
@@ -49,6 +65,11 @@ const initialDragDiagnostics: DragDiagnostics = {
   lastDragError: null,
 };
 
+const FOLLOW_DIAGNOSTICS_KEY = 'codexpet.overlay.followDiagnostics';
+const FOLLOW_INTERVAL_MS = 500;
+const FOLLOW_MOVE_THROTTLE_MS = 250;
+const FOLLOW_MIN_DELTA_PX = 2;
+
 export function OverlayApp() {
   const { config, isLoading } = useAppConfigStore();
   const { registry, isLoading: registryLoading } = useRegistryStore();
@@ -75,6 +96,7 @@ export function OverlayApp() {
   } | null>(null);
   const pendingPositionRef = useRef<OverlayPosition | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const lastFollowMoveRef = useRef<{ x: number; y: number; at: number } | null>(null);
   const actionPlatform = toActionPlatform(config.platform);
   const widgetActionConfig = validateWidgetActionConfig(
     settings.widgets,
@@ -95,6 +117,16 @@ export function OverlayApp() {
   useEffect(() => {
     writeDragDiagnostics(dragDiagnostics);
   }, [dragDiagnostics]);
+
+  useEffect(() => {
+    writeFollowDiagnostics({
+      runtimeMode: settings.overlayMode,
+      lastCodexStateReadAt: null,
+      lastTargetPosition: null,
+      followLoopActive: settings.overlayMode === 'follow-codex' && !settingsLoading,
+      lastMoveFailure: null,
+    });
+  }, [settings.overlayMode, settingsLoading]);
 
   useEffect(() => {
     if (isLoading || settingsLoading || registryLoading) return;
@@ -139,20 +171,59 @@ export function OverlayApp() {
       setRuntimeStatus(`Runtime: registry fallback ${settings.activeNestId} -> ${selectedNestId}`);
       return;
     }
-    if (settings.overlayMode === 'standalone-fixed') {
-      setRuntimeStatus('Runtime: standalone-fixed from local settings');
+    const runtimeDecision = getOverlayRuntimeDecision(settings.overlayMode);
+    if (runtimeDecision.shouldUseStandalonePosition) {
+      const position = settings.standalonePosition;
+      invoke<ClampedPosition>('move_overlay_to_clamped', {
+        x: Math.round(position.x),
+        y: Math.round(position.y),
+      })
+        .then((clamped) => {
+          setRuntimeStatus(
+            `Runtime: ${settings.overlayMode} from saved position x=${clamped.x}, y=${clamped.y}`,
+          );
+          writeFollowDiagnostics({
+            runtimeMode: settings.overlayMode,
+            lastCodexStateReadAt: null,
+            lastTargetPosition: `x=${clamped.x}, y=${clamped.y}`,
+            followLoopActive: false,
+            lastMoveFailure: null,
+          });
+        })
+        .catch((error) => {
+          setRuntimeStatus(`Runtime: ${settings.overlayMode} saved position restore failed`);
+          writeFollowDiagnostics({
+            runtimeMode: settings.overlayMode,
+            lastCodexStateReadAt: null,
+            lastTargetPosition: `x=${position.x}, y=${position.y}`,
+            followLoopActive: false,
+            lastMoveFailure: String(error),
+          });
+        });
       return;
     }
 
     let cancelled = false;
-    async function computeInitialPosition() {
+    let timer: number | null = null;
+
+    async function followCodexOnce() {
+      const readAt = new Date().toISOString();
       try {
         const codexState = await invoke<CodexStateDebug>('get_codex_state');
         const bounds = codexState.overlay_bounds;
         const mascot = bounds?.mascot;
         if (!bounds || !mascot) {
           if (!cancelled) {
-            setRuntimeStatus('Runtime: standalone fallback (Codex mascot bounds unavailable)');
+            setRuntimeStatus('Runtime: follow-codex waiting for Codex mascot bounds');
+            writeFollowDiagnostics({
+              runtimeMode: settings.overlayMode,
+              lastCodexStateReadAt: readAt,
+              lastTargetPosition: lastFollowMoveRef.current
+                ? `x=${lastFollowMoveRef.current.x}, y=${lastFollowMoveRef.current.y}`
+                : null,
+              followLoopActive: true,
+              lastMoveFailure: null,
+            });
           }
           return;
         }
@@ -166,21 +237,55 @@ export function OverlayApp() {
           screens,
           scale: screens[0]?.scale_factor ?? 1.0,
         });
+        const screen = screens[converted.display_index] ?? screens[0];
+        if (!screen) return;
+        const target = {
+          x: Math.round(screen.x + converted.x * converted.scale_factor),
+          y: Math.round(screen.y + converted.y * converted.scale_factor),
+        };
+        const nowMs = Date.now();
+        const last = lastFollowMoveRef.current;
+        if (
+          last &&
+          nowMs - last.at < FOLLOW_MOVE_THROTTLE_MS &&
+          Math.abs(target.x - last.x) < FOLLOW_MIN_DELTA_PX &&
+          Math.abs(target.y - last.y) < FOLLOW_MIN_DELTA_PX
+        ) {
+          return;
+        }
+        const clamped = await invoke<ClampedPosition>('move_overlay_to_clamped', target);
+        lastFollowMoveRef.current = { x: clamped.x, y: clamped.y, at: nowMs };
         if (!cancelled) {
-          setRuntimeStatus(
-            `Runtime: follow-codex initial position x=${converted.x.toFixed(1)}, y=${converted.y.toFixed(1)} (continuous loop not enabled)`,
-          );
+          setRuntimeStatus(`Runtime: follow-codex x=${clamped.x}, y=${clamped.y}`);
+          writeFollowDiagnostics({
+            runtimeMode: settings.overlayMode,
+            lastCodexStateReadAt: readAt,
+            lastTargetPosition: `x=${clamped.x}, y=${clamped.y}`,
+            followLoopActive: true,
+            lastMoveFailure: null,
+          });
         }
       } catch (error) {
         if (!cancelled) {
-          setRuntimeStatus(`Runtime: standalone fallback (${String(error)})`);
+          setRuntimeStatus('Runtime: follow-codex holding current position');
+          writeFollowDiagnostics({
+            runtimeMode: settings.overlayMode,
+            lastCodexStateReadAt: readAt,
+            lastTargetPosition: lastFollowMoveRef.current
+              ? `x=${lastFollowMoveRef.current.x}, y=${lastFollowMoveRef.current.y}`
+              : null,
+            followLoopActive: true,
+            lastMoveFailure: String(error),
+          });
         }
       }
     }
 
-    computeInitialPosition();
+    void followCodexOnce();
+    timer = window.setInterval(() => void followCodexOnce(), FOLLOW_INTERVAL_MS);
     return () => {
       cancelled = true;
+      if (timer !== null) window.clearInterval(timer);
     };
   }, [
     isLoading,
@@ -189,6 +294,7 @@ export function OverlayApp() {
     selectedNestId,
     settings.activeNestId,
     settings.overlayMode,
+    settings.standalonePosition,
     settingsLoading,
   ]);
 
@@ -211,7 +317,7 @@ export function OverlayApp() {
     animationFrameRef.current = null;
     const nextPosition = pendingPositionRef.current;
     if (!nextPosition) return;
-    invoke('set_overlay_position', { x: nextPosition.x, y: nextPosition.y }).catch((error) => {
+    invoke('move_overlay_to_clamped', { x: nextPosition.x, y: nextPosition.y }).catch((error) => {
       updateDragDiagnostics({ lastDragError: String(error) });
     });
   };
@@ -287,6 +393,17 @@ export function OverlayApp() {
     }
     dragStartRef.current = null;
     updateDragDiagnostics({ draggingActive: false });
+    const persisted = persistStandalonePosition(
+      settings.overlayMode,
+      pendingPositionRef.current ?? { x: 0, y: 0 },
+    );
+    if (persisted) {
+      invoke<OverlayPosition>('get_overlay_position')
+        .then((position) => updateSettings({ standalonePosition: position }).catch(() => undefined))
+        .catch((error) =>
+          updateDragDiagnostics({ lastDragError: `position save failed: ${String(error)}` }),
+        );
+    }
   };
 
   const executeAction = async (action: QuickActionSettings) => {
@@ -523,6 +640,10 @@ export function OverlayApp() {
 
 function writeDragDiagnostics(diagnostics: DragDiagnostics) {
   window.localStorage.setItem('codexpet.overlay.dragDiagnostics', JSON.stringify(diagnostics));
+}
+
+function writeFollowDiagnostics(diagnostics: OverlayFollowDiagnostics) {
+  window.localStorage.setItem(FOLLOW_DIAGNOSTICS_KEY, JSON.stringify(diagnostics));
 }
 
 function createRenderModel(

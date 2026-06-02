@@ -36,6 +36,23 @@ describe('settings schema', () => {
     expect(result.settings.locale).toBe('system');
   });
 
+  it('preserves standalone position when switching overlay modes', () => {
+    const result = loadSettings({
+      ...createDefaultSettings(),
+      overlayMode: 'follow-codex',
+      standalonePosition: { x: 320, y: 180, displayId: 'retina-main' },
+    });
+
+    const switched = loadSettings({ ...result.settings, overlayMode: 'standalone-fixed' });
+
+    expect(switched.settings.overlayMode).toBe('standalone-fixed');
+    expect(switched.settings.standalonePosition).toEqual({
+      x: 320,
+      y: 180,
+      displayId: 'retina-main',
+    });
+  });
+
   it('falls back for corrupted settings', () => {
     const result = loadSettings('not-json-object');
 

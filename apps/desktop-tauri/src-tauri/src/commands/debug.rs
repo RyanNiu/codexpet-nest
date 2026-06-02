@@ -1,5 +1,5 @@
 use crate::codex_state::{self, CodexState};
-use crate::coords::{self, ConvertedPosition, ScreenInfo};
+use crate::coords::{self, ClampedPosition, ConvertedPosition, ScreenInfo};
 use crate::platform;
 use crate::windows;
 use serde::Serialize;
@@ -142,10 +142,57 @@ pub fn set_overlay_position(app: tauri::AppHandle, x: i32, y: i32) -> Result<(),
 }
 
 #[tauri::command]
+pub fn move_overlay_to_clamped(
+    app: tauri::AppHandle,
+    x: i32,
+    y: i32,
+) -> Result<ClampedPosition, String> {
+    let screens = get_screen_list(app.clone());
+    let size = windows::get_overlay_size_window(&app)?;
+    let clamped =
+        coords::clamp_position_to_screens(x, y, size.width as i32, size.height as i32, &screens);
+    windows::set_overlay_position_window(&app, clamped.x, clamped.y)?;
+    Ok(clamped)
+}
+
+#[tauri::command]
 pub fn move_overlay_by(app: tauri::AppHandle, dx: i32, dy: i32) -> Result<OverlayPosition, String> {
     let position = windows::move_overlay_by_window(&app, dx, dy)?;
     Ok(OverlayPosition {
         x: position.x,
         y: position.y,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn convert_position_command_reuses_coordinate_conversion() {
+        let screens = vec![ScreenInfo {
+            x: 0,
+            y: 0,
+            width: 3024,
+            height: 1964,
+            scale_factor: 2.0,
+            is_primary: true,
+        }];
+
+        let result = convert_position(200.0, 300.0, 120.0, 100.0, screens, 2.0);
+
+        assert_eq!(result.display_index, 0);
+        assert_eq!(result.scale_factor, 2.0);
+        assert_eq!(result.x, 168.0);
+        assert_eq!(result.y, 150.0);
+    }
+
+    #[test]
+    fn overlay_position_serializes_for_debug_command_response() {
+        let position = OverlayPosition { x: 12, y: 34 };
+        let value = serde_json::to_value(position).expect("position should serialize");
+
+        assert_eq!(value["x"], 12);
+        assert_eq!(value["y"], 34);
+    }
 }

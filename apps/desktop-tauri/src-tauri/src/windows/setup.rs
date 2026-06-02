@@ -160,6 +160,18 @@ pub fn get_overlay_position_window<R: Runtime>(
         .map_err(|error| format!("Failed to read overlay position: {}", error))
 }
 
+pub fn get_overlay_size_window<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Result<tauri::PhysicalSize<u32>, String> {
+    let window = app
+        .get_webview_window("overlay")
+        .ok_or_else(|| "Overlay window not found".to_string())?;
+
+    window
+        .outer_size()
+        .map_err(|error| format!("Failed to read overlay size: {}", error))
+}
+
 pub fn set_overlay_position_window<R: Runtime>(
     app: &tauri::AppHandle<R>,
     x: i32,
