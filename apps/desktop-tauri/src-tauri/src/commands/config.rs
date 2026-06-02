@@ -2,7 +2,7 @@ use crate::app_config::AppConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 
@@ -121,8 +121,9 @@ pub fn import_local_package(
         .clone()
         .or(manifest.theme.clone())
         .ok_or_else(|| "Nest package requires layout or theme".to_string())?;
-    let layout_path = package_dir.join(&layout);
-    let _layout_value = read_json_file(&layout_path, "nest layout")?;
+    let layout_path = safe_join(&package_dir, &layout)?;
+    let layout_value = read_json_file(&layout_path, "nest layout")?;
+    validate_nest_layout(&layout_value)?;
 
     let mut registry = load_local_registry_value(config.inner())?;
     let now = timestamp_now();
@@ -186,9 +187,10 @@ pub fn load_local_nest_package(
         .layout
         .or(manifest.theme)
         .ok_or_else(|| "Nest package requires layout or theme".to_string())?;
-    let layout_path = asset_root_path.join(layout);
+    let layout_path = safe_join(&asset_root_path, &layout)?;
     let nest_layout = read_json_file(&layout_path, "nest layout")?;
-    let missing_assets = collect_missing_assets(&asset_root_path, &nest_layout);
+    validate_nest_layout(&nest_layout)?;
+    let missing_assets = collect_missing_assets(&asset_root_path, &nest_layout)?;
 
     Ok(ImportedNestPackage {
         package_manifest: manifest_value,
@@ -222,7 +224,7 @@ fn write_json_file(path: &PathBuf, value: &Value, label: &str) -> Result<(), Str
     })
 }
 
-fn read_json_file(path: &PathBuf, label: &str) -> Result<Value, String> {
+fn read_json_file(path: &Path, label: &str) -> Result<Value, String> {
     let contents = fs::read_to_string(path)
         .map_err(|error| format!("Failed to read {} {}: {}", label, path.display(), error))?;
     serde_json::from_str(&contents)
@@ -258,7 +260,7 @@ fn upsert_registry_entry(registry: &mut Value, entry: Value) -> Result<(), Strin
     Ok(())
 }
 
-fn collect_missing_assets(asset_root: &Path, nest_layout: &Value) -> Vec<String> {
+fn collect_missing_assets(asset_root: &Path, nest_layout: &Value) -> Result<Vec<String>, String> {
     let mut assets = Vec::new();
     if let Some(layers) = nest_layout.get("layers").and_then(Value::as_array) {
         for layer in layers {
@@ -286,8 +288,91 @@ fn collect_missing_assets(asset_root: &Path, nest_layout: &Value) -> Vec<String>
     }
     assets
         .into_iter()
-        .filter(|asset| !asset_root.join(asset).exists())
-        .collect()
+        .map(|asset| {
+            let path = safe_join(asset_root, &asset)?;
+            Ok((asset, path))
+        })
+        .collect::<Result<Vec<_>, String>>()
+        .map(|entries| {
+            entries
+                .into_iter()
+                .filter_map(|(asset, path)| if path.exists() { None } else { Some(asset) })
+                .collect()
+        })
+}
+
+fn safe_join(root: &Path, relative: &str) -> Result<PathBuf, String> {
+    let path = Path::new(relative);
+    if relative.is_empty() || path.is_absolute() {
+        return Err(format!(
+            "Package path must be local and relative: {}",
+            relative
+        ));
+    }
+    for component in path.components() {
+        match component {
+            Component::Normal(_) => {}
+            _ => {
+                return Err(format!(
+                    "Package path contains unsafe component: {}",
+                    relative
+                ))
+            }
+        }
+    }
+    Ok(root.join(path))
+}
+
+fn validate_nest_layout(layout: &Value) -> Result<(), String> {
+    let object = layout
+        .as_object()
+        .ok_or_else(|| "nest layout must be an object".to_string())?;
+    match object.get("schemaVersion").and_then(Value::as_str) {
+        Some("1.0.0") | Some("1.1.0") => {}
+        _ => return Err("nest layout schemaVersion must be 1.0.0 or 1.1.0".to_string()),
+    }
+    let canvas = object
+        .get("canvas")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "nest layout requires canvas object".to_string())?;
+    for key in ["width", "height"] {
+        let value = canvas
+            .get(key)
+            .and_then(Value::as_f64)
+            .ok_or_else(|| format!("nest layout canvas requires numeric {}", key))?;
+        if !value.is_finite() || value <= 0.0 {
+            return Err(format!("nest layout canvas {} must be positive", key));
+        }
+    }
+    let layers = object
+        .get("layers")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "nest layout requires layers array".to_string())?;
+    for layer in layers {
+        let src = layer
+            .get("src")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "nest layer requires src".to_string())?;
+        safe_join(Path::new("."), src)?;
+    }
+    if let Some(elements) = object.get("elements").and_then(Value::as_array) {
+        for element in elements {
+            if let Some(src) = element.get("src").and_then(Value::as_str) {
+                safe_join(Path::new("."), src)?;
+            }
+            if let Some(fallback) = element.get("fallback").and_then(Value::as_str) {
+                safe_join(Path::new("."), fallback)?;
+            }
+            if let Some(variants) = element.get("variants").and_then(Value::as_object) {
+                for value in variants.values() {
+                    if let Some(src) = value.as_str() {
+                        safe_join(Path::new("."), src)?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn timestamp_now() -> String {
@@ -304,4 +389,78 @@ fn settings_path(config: &AppConfig) -> PathBuf {
 
 fn registry_path(config: &AppConfig) -> PathBuf {
     PathBuf::from(&config.data_directory).join("registry.json")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_unsafe_package_paths() {
+        assert!(safe_join(Path::new("/tmp/pkg"), "assets/a.png").is_ok());
+        assert!(safe_join(Path::new("/tmp/pkg"), "../outside.png").is_err());
+        assert!(safe_join(Path::new("/tmp/pkg"), "/tmp/outside.png").is_err());
+        assert!(safe_join(Path::new("/tmp/pkg"), "").is_err());
+    }
+
+    #[test]
+    fn validates_minimal_nest_layout_shape() {
+        let valid = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "assets/bg.png", "frame": { "x": 0, "y": 0, "width": 100, "height": 80 } }]
+        });
+        let invalid = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "../outside.png" }]
+        });
+
+        assert!(validate_nest_layout(&valid).is_ok());
+        assert!(validate_nest_layout(&invalid).is_err());
+    }
+
+    #[test]
+    fn rejects_unsafe_element_asset_paths() {
+        let invalid_src = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "assets/bg.png" }],
+            "elements": [{ "id": "hat", "type": "image", "src": "../outside.png" }]
+        });
+        let invalid_fallback = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "assets/bg.png" }],
+            "elements": [{ "id": "hat", "type": "image", "src": "assets/hat.png", "fallback": "../outside.png" }]
+        });
+        let invalid_variant = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "assets/bg.png" }],
+            "elements": [{ "id": "hat", "type": "image", "variants": { "red": "assets/red-hat.png", "blue": "../outside.png" } }]
+        });
+
+        assert!(validate_nest_layout(&invalid_src).is_err());
+        assert!(validate_nest_layout(&invalid_fallback).is_err());
+        assert!(validate_nest_layout(&invalid_variant).is_err());
+    }
+
+    #[test]
+    fn accepts_safe_element_asset_paths() {
+        let valid = serde_json::json!({
+            "schemaVersion": "1.0.0",
+            "canvas": { "width": 100, "height": 80 },
+            "layers": [{ "id": "bg", "type": "image", "src": "assets/bg.png" }],
+            "elements": [{
+                "id": "hat",
+                "type": "image",
+                "src": "assets/hat.png",
+                "fallback": "assets/fallback-hat.png",
+                "variants": { "red": "assets/red-hat.png", "blue": "assets/blue-hat.png" }
+            }]
+        });
+
+        assert!(validate_nest_layout(&valid).is_ok());
+    }
 }

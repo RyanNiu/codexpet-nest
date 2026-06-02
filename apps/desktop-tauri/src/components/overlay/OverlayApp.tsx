@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
@@ -466,5 +466,5 @@ function isBuiltInEntry(assetRoot: string): boolean {
 }
 
 function localAssetUrl(assetRoot: string, path: string): string {
-  return `file://${assetRoot.replace(/\/$/, '')}/${path}`;
+  return convertFileSrc(`${assetRoot.replace(/\/$/, '')}/${path}`);
 }

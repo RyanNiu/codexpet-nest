@@ -41,6 +41,7 @@ const codexState = {
 };
 
 vi.mock('@tauri-apps/api/core', () => ({
+  convertFileSrc: vi.fn((path: string) => `asset://${path}`),
   invoke: vi.fn(),
 }));
 

@@ -15,6 +15,9 @@
 - Overlay resolves built-in entries through fixtures and imported entries through `assetRoot` + `manifestPath`.
 - Overlay renders imported nest layouts through the existing renderer path and resolves local image assets as `file://` URLs.
 - Missing imported assets are reported in overlay UI without crashing rendering.
+- Follow-up hardening: imported asset URLs now use Tauri `convertFileSrc` instead of hand-built `file://` URLs.
+- Follow-up hardening: imported package layout and asset paths reject absolute paths, empty paths, and path traversal components before joining with `assetRoot`.
+- Follow-up hardening: Tauri validates minimum nest layout shape before import/load, including schema version, positive canvas dimensions, layers array, safe layer asset paths, and safe element `src`/`fallback`/`variants` asset paths.
 
 ## Files Changed
 
@@ -40,6 +43,7 @@
 - Settings displays imported packages and disabled packages.
 - Settings imports a local package directory via text input.
 - Overlay handles imported nest missing assets with a visible fallback issue and no crash.
+- Rust unit tests cover unsafe path rejection, minimum nest layout validation, and element `src`/`fallback`/`variants` asset path hardening.
 
 ## Not Implemented
 
