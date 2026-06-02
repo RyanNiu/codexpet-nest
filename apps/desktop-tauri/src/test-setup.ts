@@ -87,6 +87,22 @@ beforeEach(async () => {
     switch (command) {
       case 'get_app_config':
         return Promise.resolve(fallbackConfig);
+      case 'get_action_capabilities':
+      case 'list_supported_actions':
+        return Promise.resolve({
+          platform: 'macos',
+          supportedActionTypes: ['url', 'app', 'shortcut'],
+          disabledActionTypes: ['shell-placeholder'],
+          allowlistedUrlPrefixes: ['https://codexpet.xyz/', 'http://localhost:'],
+          allowlistedAppTargets: ['codex-home'],
+          shellExecutionEnabled: false,
+        });
+      case 'execute_quick_action':
+        return Promise.resolve({
+          id: 'test-action',
+          status: 'mocked',
+          message: 'Action completed in test',
+        });
       case 'load_local_settings':
         return Promise.resolve(fallbackSettings);
       case 'save_local_settings':

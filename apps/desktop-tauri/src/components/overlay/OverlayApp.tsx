@@ -4,6 +4,8 @@ import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { buildNestRenderModel, createMetricSnapshot } from '@codexpet/renderer';
 import { builtInNestFixtures, getBuiltInNestFixture } from '@codexpet/renderer/fixtures/nests';
+import { validateWidgetActionConfig } from '@codexpet/core';
+import type { ActionPlatform, QuickActionSettings } from '@codexpet/core';
 import type { NestLayoutManifest } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import {
@@ -33,6 +35,12 @@ interface ImportedNestPackage {
   missingAssets: string[];
 }
 
+interface QuickActionResult {
+  id: string;
+  status: string;
+  message: string;
+}
+
 const initialDragDiagnostics: DragDiagnostics = {
   mouseDownCount: 0,
   lastMousePosition: 'none',
@@ -55,6 +63,9 @@ export function OverlayApp() {
   const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
   const [importedNest, setImportedNest] = useState<ImportedNestPackage | null>(null);
   const [assetIssue, setAssetIssue] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
+  const [confirmingActionId, setConfirmingActionId] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<string | null>(null);
   const [dragDiagnostics, setDragDiagnostics] = useState<DragDiagnostics>(initialDragDiagnostics);
   const dragStartRef = useRef<{
     pointerX: number;
@@ -64,6 +75,22 @@ export function OverlayApp() {
   } | null>(null);
   const pendingPositionRef = useRef<OverlayPosition | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const actionPlatform = toActionPlatform(config.platform);
+  const widgetActionConfig = validateWidgetActionConfig(
+    settings.widgets,
+    settings.quickActions,
+    actionPlatform,
+  );
+  const quickActions = widgetActionConfig.quickActions.filter(
+    (action) => action.enabled && action.kind !== 'shell-placeholder',
+  );
+  const runtimeMetrics = createMetricSnapshot(now);
+  const slotContent = buildSlotContent(settings.widgets, now, quickActions.length);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     writeDragDiagnostics(dragDiagnostics);
@@ -262,6 +289,30 @@ export function OverlayApp() {
     updateDragDiagnostics({ draggingActive: false });
   };
 
+  const executeAction = async (action: QuickActionSettings) => {
+    if (action.requireConfirm && confirmingActionId !== action.id) {
+      setConfirmingActionId(action.id);
+      setActionResult(`Confirm ${action.name} to run`);
+      return;
+    }
+    setConfirmingActionId(null);
+    setActionResult(`Running ${action.name}...`);
+    try {
+      const result = await invoke<QuickActionResult>('execute_quick_action', {
+        action: {
+          id: action.id,
+          type: action.kind,
+          target: action.target,
+          platform: action.platform ?? 'all',
+          enabled: action.enabled,
+        },
+      });
+      setActionResult(`${result.status}: ${result.message}`);
+    } catch (error) {
+      setActionResult(`error: ${String(error)}`);
+    }
+  };
+
   return (
     <div
       data-testid="overlay-root"
@@ -391,9 +442,41 @@ export function OverlayApp() {
 
       <div style={{ position: 'relative', zIndex: 5, textAlign: 'center' }}>
         <NestOverlayView
-          model={createRenderModel(selectedNestId, selectedNestEntry?.assetRoot, importedNest)}
+          model={createRenderModel(
+            selectedNestId,
+            selectedNestEntry?.assetRoot,
+            importedNest,
+            runtimeMetrics,
+          )}
           selectedNestId={selectedNestId}
+          slotContent={slotContent}
         />
+        {quickActions.length > 0 && (
+          <div
+            data-testid="quick-actions"
+            style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: -2 }}
+          >
+            {quickActions.slice(0, 3).map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                onClick={() => void executeAction(action)}
+                style={{
+                  border: '1px solid rgba(255,255,255,0.45)',
+                  borderRadius: 999,
+                  background: confirmingActionId === action.id ? '#facc15' : 'rgba(0,0,0,0.45)',
+                  color: confirmingActionId === action.id ? '#111827' : '#ffffff',
+                  padding: '3px 8px',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                }}
+              >
+                {confirmingActionId === action.id ? `Confirm ${action.name}` : action.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.82, marginTop: -4 }}>
           {config.appName || 'CodexPet'} v{config.version} · mode: {overlayMode}
         </div>
@@ -408,6 +491,14 @@ export function OverlayApp() {
           </div>
         )}
         <div style={{ textAlign: 'center', fontSize: 9, opacity: 0.72 }}>{runtimeStatus}</div>
+        {actionResult && (
+          <div
+            data-testid="action-result"
+            style={{ textAlign: 'center', fontSize: 9, opacity: 0.88 }}
+          >
+            Action: {actionResult}
+          </div>
+        )}
         {isDevOverlay && (
           <div
             data-testid="debug-platform-label"
@@ -438,10 +529,10 @@ function createRenderModel(
   selectedNestId: string,
   assetRoot: string | undefined,
   importedNest: ImportedNestPackage | null,
+  metrics = createMetricSnapshot(),
 ) {
   if (importedNest && assetRoot && !isBuiltInEntry(assetRoot)) {
     const missingAssets = new Set(importedNest.missingAssets);
-    const metrics = createMetricSnapshot();
     return buildNestRenderModel({
       theme: importedNest.nestLayout,
       metrics,
@@ -453,12 +544,36 @@ function createRenderModel(
   if (!fixture) {
     throw new Error('No built-in nest fixtures are available');
   }
-  const metrics = createMetricSnapshot();
   return buildNestRenderModel({
     theme: fixture.nestLayout,
     metrics,
     resolveAsset: (path) => fixture.assets[path] ?? null,
   });
+}
+
+function buildSlotContent(
+  widgets: { id: string; type: string; enabled: boolean; slot: string }[],
+  now: Date,
+  actionCount: number,
+): Record<string, string> {
+  const content: Record<string, string> = {};
+  for (const widget of widgets) {
+    if (!widget.enabled) continue;
+    if (widget.slot === 'clock') {
+      content[widget.slot] =
+        `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    } else if (widget.slot === 'usage') {
+      content[widget.slot] = 'Usage 68%';
+    } else if (widget.slot === 'actions') {
+      content[widget.slot] = `${actionCount} actions`;
+    }
+  }
+  return content;
+}
+
+function toActionPlatform(platform: string): ActionPlatform {
+  if (platform === 'macos' || platform === 'windows' || platform === 'linux') return platform;
+  return 'all';
 }
 
 function isBuiltInEntry(assetRoot: string): boolean {

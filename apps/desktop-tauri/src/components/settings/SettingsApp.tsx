@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { OverlayMode } from '@codexpet/core';
+import { validateWidgetActionConfig } from '@codexpet/core';
+import type { ActionPlatform, OverlayMode, QuickActionSettings } from '@codexpet/core';
 import { useAppConfigStore } from '@/store/appConfigStore';
 import {
   getEnabledNestEntries,
@@ -33,6 +34,7 @@ export function SettingsApp() {
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
   const [importPath, setImportPath] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
+  const [actionCapabilities, setActionCapabilities] = useState<string[]>([]);
 
   const allNestEntries = getNestEntries(registry);
   const nestEntries = getEnabledNestEntries(registry);
@@ -41,6 +43,12 @@ export function SettingsApp() {
     settings.activeNestId,
   );
   const activeNestId = activeNestEntry?.id ?? '';
+  const actionPlatform = toActionPlatform(config.platform);
+  const widgetActionConfig = validateWidgetActionConfig(
+    settings.widgets,
+    settings.quickActions,
+    actionPlatform,
+  );
 
   useEffect(() => {
     invoke<boolean>('is_overlay_visible')
@@ -49,6 +57,12 @@ export function SettingsApp() {
         setOverlayControlError(null);
       })
       .catch((invokeError) => setOverlayControlError(String(invokeError)));
+  }, []);
+
+  useEffect(() => {
+    invoke<{ supportedActionTypes: string[] }>('get_action_capabilities')
+      .then((capabilities) => setActionCapabilities(capabilities.supportedActionTypes))
+      .catch(() => setActionCapabilities([]));
   }, []);
 
   const showOverlay = () => {
@@ -95,6 +109,13 @@ export function SettingsApp() {
     } catch (importFailure) {
       setImportError(String(importFailure));
     }
+  };
+
+  const setActionEnabled = (actionId: string, enabled: boolean) => {
+    const quickActions = settings.quickActions.map((action) =>
+      action.id === actionId ? { ...action, enabled } : action,
+    );
+    update({ quickActions }).catch(() => undefined);
   };
 
   return (
@@ -215,6 +236,41 @@ export function SettingsApp() {
           </section>
 
           <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Widgets / Actions</h2>
+            <p style={{ ...descriptionStyle, marginBottom: 12 }}>
+              Built-in runtime widgets and safe quick actions. Shell placeholders remain disabled.
+            </p>
+            {widgetActionConfig.errors.length > 0 && (
+              <p role="alert" style={{ color: '#b91c1c', margin: '0 0 12px' }}>
+                Widget/action config error: {widgetActionConfig.errors.join('; ')}
+              </p>
+            )}
+            <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+              {settings.widgets.map((widget) => (
+                <div key={widget.id} style={actionRowStyle}>
+                  <span style={{ fontWeight: 800 }}>{widget.id}</span>
+                  <span style={descriptionStyle}>{widget.type}</span>
+                  <span style={descriptionStyle}>slot: {widget.slot}</span>
+                  <span style={{ ...pillStyle, color: widget.enabled ? '#047857' : '#b91c1c' }}>
+                    {widget.enabled ? 'enabled' : 'disabled'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {settings.quickActions.map((action) => (
+                <ActionSettingsRow
+                  key={action.id}
+                  action={action}
+                  platform={actionPlatform}
+                  supported={actionCapabilities.includes(action.kind)}
+                  onToggle={setActionEnabled}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section style={cardStyle}>
             <h2 style={sectionTitleStyle}>Local Packages / Nests</h2>
             <p style={{ ...descriptionStyle, marginBottom: 12 }}>
               Select the active nest from the local package registry.
@@ -315,6 +371,47 @@ export function SettingsApp() {
   );
 }
 
+function ActionSettingsRow({
+  action,
+  platform,
+  supported,
+  onToggle,
+}: {
+  action: QuickActionSettings;
+  platform: ActionPlatform;
+  supported: boolean;
+  onToggle: (actionId: string, enabled: boolean) => void;
+}) {
+  const platformSupported =
+    !action.platform || action.platform === 'all' || action.platform === platform;
+  const disabledByRuntime = action.kind === 'shell-placeholder' || !platformSupported || !supported;
+  const status = disabledByRuntime ? 'disabled' : action.enabled ? 'enabled' : 'off';
+
+  return (
+    <label style={{ ...actionRowStyle, opacity: disabledByRuntime ? 0.68 : 1 }}>
+      <input
+        type="checkbox"
+        aria-label={`Enable ${action.name}`}
+        checked={action.enabled && !disabledByRuntime}
+        disabled={disabledByRuntime}
+        onChange={(event) => onToggle(action.id, event.currentTarget.checked)}
+      />
+      <span style={{ fontWeight: 800 }}>{action.name}</span>
+      <span style={descriptionStyle}>{action.kind}</span>
+      <span style={descriptionStyle}>platform: {action.platform ?? 'all'}</span>
+      <span style={descriptionStyle}>confirm: {String(action.requireConfirm)}</span>
+      <span style={{ ...pillStyle, color: status === 'enabled' ? '#047857' : '#b91c1c' }}>
+        {status}
+      </span>
+    </label>
+  );
+}
+
+function toActionPlatform(platform: string): ActionPlatform {
+  if (platform === 'macos' || platform === 'windows' || platform === 'linux') return platform;
+  return 'all';
+}
+
 const cardStyle: React.CSSProperties = {
   padding: 18,
   borderRadius: 16,
@@ -380,4 +477,16 @@ const packageRowStyle: React.CSSProperties = {
   color: '#18202f',
   textAlign: 'left',
   cursor: 'pointer',
+};
+const actionRowStyle: React.CSSProperties = {
+  width: '100%',
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr auto auto auto auto',
+  alignItems: 'center',
+  gap: 10,
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  padding: '10px 12px',
+  color: '#18202f',
+  textAlign: 'left',
 };

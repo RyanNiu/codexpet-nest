@@ -56,6 +56,9 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::actions::execute_quick_action,
+            commands::actions::get_action_capabilities,
+            commands::actions::list_supported_actions,
             commands::config::get_app_config,
             commands::config::load_local_settings,
             commands::config::load_local_registry,

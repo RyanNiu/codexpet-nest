@@ -49,8 +49,46 @@ describe('OverlayApp', () => {
     render(<OverlayApp />);
     expect(screen.getByTestId('nest-render-model')).toBeInTheDocument();
     expect(screen.getByTestId('widget-slot-clock')).toBeInTheDocument();
+    expect(screen.getByText(/Usage 68%/)).toBeInTheDocument();
+    expect(screen.getByTestId('quick-actions')).toBeInTheDocument();
     expect(screen.getByText(/v0.1.12/)).toBeInTheDocument();
     expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+  });
+
+  it('should execute quick action and show result', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    render(<OverlayApp />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Docs' }));
+
+    expect(await screen.findByText(/Action: mocked: Action completed in test/)).toBeInTheDocument();
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+      'execute_quick_action',
+      expect.objectContaining({
+        action: expect.objectContaining({ id: 'open-codexpet-docs', type: 'url' }),
+      }),
+    );
+  });
+
+  it('should require confirmation before running confirm actions', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    render(<OverlayApp />);
+    expect(await screen.findByText(/standalone fallback/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Codex Path' }));
+
+    expect(screen.getByText(/Action: Confirm Open Codex Path to run/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm Open Codex Path' })).toBeInTheDocument();
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith(
+      'execute_quick_action',
+      expect.objectContaining({
+        action: expect.objectContaining({ id: 'open-codex-path' }),
+      }),
+    );
   });
 
   it('should render debug overlay elements when isDebug is true', async () => {

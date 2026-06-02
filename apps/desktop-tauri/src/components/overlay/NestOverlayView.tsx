@@ -3,9 +3,10 @@ import type { NestRenderModel, RenderElement } from '@codexpet/renderer';
 interface Props {
   model: NestRenderModel;
   selectedNestId: string;
+  slotContent?: Record<string, string>;
 }
 
-export function NestOverlayView({ model, selectedNestId }: Props) {
+export function NestOverlayView({ model, selectedNestId, slotContent = {} }: Props) {
   return (
     <div
       data-testid="nest-render-model"
@@ -71,7 +72,7 @@ export function NestOverlayView({ model, selectedNestId }: Props) {
             textTransform: 'uppercase',
           }}
         >
-          {slot.id}
+          {slotContent[slot.id] ?? slot.id}
         </div>
       ))}
 

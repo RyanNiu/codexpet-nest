@@ -74,6 +74,37 @@ describe('SettingsApp', () => {
     });
   });
 
+  it('should display widgets/actions and toggle action enabled', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+
+    render(<SettingsApp />);
+
+    expect(screen.getByRole('heading', { name: 'Widgets / Actions' })).toBeInTheDocument();
+    expect(screen.getByText('clock-widget')).toBeInTheDocument();
+    expect(screen.getByText('Open Docs')).toBeInTheDocument();
+    expect(screen.getAllByText('platform: all').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('confirm: false').length).toBeGreaterThan(0);
+
+    const openDocsToggle = screen.getByRole('checkbox', { name: 'Enable Open Docs' });
+    await waitFor(() => expect(openDocsToggle).not.toBeDisabled());
+    fireEvent.click(openDocsToggle);
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        'save_local_settings',
+        expect.objectContaining({
+          settings: expect.objectContaining({
+            quickActions: expect.arrayContaining([
+              expect.objectContaining({ id: 'open-codexpet-docs', enabled: false }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it('should show imported and disabled nests but only select enabled nests', async () => {
     const importedNest = {
       ...builtInNestRegistryEntries[0]!,
@@ -102,7 +133,7 @@ describe('SettingsApp', () => {
 
     expect(screen.getAllByText('Imported Nest').length).toBeGreaterThan(0);
     expect(screen.getByText('Disabled Nest')).toBeInTheDocument();
-    expect(screen.getByText('disabled')).toBeInTheDocument();
+    expect(screen.getAllByText('disabled').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('Active nest')).toHaveValue('default');
     expect(screen.getByRole('option', { name: 'Imported Nest' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Disabled Nest' })).not.toBeInTheDocument();
