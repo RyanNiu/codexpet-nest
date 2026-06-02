@@ -41,7 +41,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .normal
+        applyWindowLevel()
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         ignoresMouseEvents = false
         isMovableByWindowBackground = false
@@ -251,6 +251,13 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
             self?.updateModeLabel()
             self?.poll()
         }
+        NotificationCenter.default.addObserver(forName: .settingsChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.applyWindowLevel()
+        }
+    }
+
+    private func applyWindowLevel() {
+        level = SettingsStore.shared.settings.petAlwaysOnTop ? .floating : .normal
     }
 
     private func updateSizeAndPosition() {
@@ -274,8 +281,7 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
         let petAk = appKitRectFromTopLeft(petTl, screen: screen)
         let nestFrame = computeNestFrame(petFrame: petAk, screen: screen)
-        // Stay behind/at normal level. Hover is handled by global polling.
-        self.level = .normal
+        applyWindowLevel()
         self.ignoresMouseEvents = false
         
         #if DEBUG
@@ -286,6 +292,9 @@ final class NestOverlayWindow: NSPanel, NSWindowDelegate {
 
         if !isVisible || !lastVisible {
             orderFront(nil)
+        }
+        if SettingsStore.shared.settings.petAlwaysOnTop {
+            orderBack(nil)
         }
         lastVisible = true
     }
