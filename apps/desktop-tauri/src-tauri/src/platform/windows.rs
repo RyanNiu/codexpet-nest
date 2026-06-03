@@ -6,15 +6,18 @@
 /// Win32 API calls. These will be implemented and validated when a Windows
 /// test machine with Codex Desktop becomes available.
 ///
-/// ## Expected Codex State Path (Windows)
+/// ## Potential Codex State Path (Windows, unverified)
 ///
 /// ```
 /// %USERPROFILE%\.codex\.codex-global-state.json
 /// ```
 ///
-/// Default Codex Desktop install location on Windows places the global state
-/// JSON in the user's home `.codex` directory, mirroring the macOS layout.
-/// `CODEX_HOME` environment variable should be checked first.
+/// This is the current resolver fallback because `dirs::home_dir()` maps to the
+/// Windows user profile directory. It has NOT been verified against a real
+/// Codex Desktop for Windows install, so Phase 11 keeps the path/schema as a
+/// manual verification item. `CODEX_HOME` environment variable is checked first.
+/// Do not treat this fallback path as product parity until a Windows machine
+/// confirms the file exists and contains the expected avatar keys.
 ///
 /// ## Expected Overlay Transparency (Windows)
 ///

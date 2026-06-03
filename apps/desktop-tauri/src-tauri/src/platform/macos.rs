@@ -101,16 +101,37 @@ pub fn apply_native_transparency<R: Runtime>(_window: &tauri::WebviewWindow<R>) 
     );
 }
 
-/// Stub for non-macOS platforms.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+pub const WINDOWS_CLICK_THROUGH_NOT_IMPLEMENTED: &str =
+    "Windows click-through is not implemented yet";
+
+/// Stub for Windows until Phase 12 implements the Win32 hit-test/layered-window path.
+#[cfg(target_os = "windows")]
 pub fn set_click_through<R: Runtime>(
     _window: &tauri::WebviewWindow<R>,
     enabled: bool,
 ) -> Result<(), String> {
     log::warn!(
-        "Click-through not yet verified on {}. Enabled={}.",
+        "{}. Requested enabled={}. Expected Phase 12 Win32 implementation: WS_EX_LAYERED + WS_EX_TRANSPARENT.",
+        WINDOWS_CLICK_THROUGH_NOT_IMPLEMENTED,
+        enabled
+    );
+    Err(WINDOWS_CLICK_THROUGH_NOT_IMPLEMENTED.to_string())
+}
+
+/// Stub for other non-macOS platforms.
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+pub fn set_click_through<R: Runtime>(
+    _window: &tauri::WebviewWindow<R>,
+    enabled: bool,
+) -> Result<(), String> {
+    log::warn!(
+        "Click-through is not implemented on {}. Requested enabled={}",
         std::env::consts::OS,
         enabled
     );
-    Ok(())
+    Err(format!(
+        "Click-through is not implemented on {}",
+        std::env::consts::OS
+    ))
 }

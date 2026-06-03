@@ -34,6 +34,9 @@ const overlaySource = readText('apps/desktop-tauri/src/components/overlay/Overla
 const settingsSource = readText('apps/desktop-tauri/src/components/settings/SettingsApp.tsx');
 const traySource = readText('apps/desktop-tauri/src-tauri/src/tray/builder.rs');
 const windowSource = readText('apps/desktop-tauri/src-tauri/src/windows/setup.rs');
+const platformMacosSource = readText('apps/desktop-tauri/src-tauri/src/platform/macos.rs');
+const actionsSource = readText('apps/desktop-tauri/src-tauri/src/commands/actions.rs');
+const defaultCapability = readText('apps/desktop-tauri/src-tauri/capabilities/default.json');
 
 check('product name', tauriConfig.productName === 'CodexPet Nest', tauriConfig.productName);
 check('bundle identifier', tauriConfig.identifier === 'xyz.codexpet.nest', tauriConfig.identifier);
@@ -59,6 +62,14 @@ check('click-through hides quick actions', overlaySource.includes('overlay-inter
 check('production missing asset feedback is gentle', overlaySource.includes('Some local nest assets are unavailable.'), 'OverlayApp.tsx');
 check('development diagnostics present', settingsSource.includes('Development Diagnostics'), 'SettingsApp.tsx');
 check('follow diagnostics refresh interval', settingsSource.includes('setInterval(refreshFollowDiagnostics, 1_000)'), 'SettingsApp.tsx');
+check(
+  'Windows click-through explicitly unimplemented',
+  platformMacosSource.includes('Windows click-through is not implemented yet') &&
+    platformMacosSource.includes('Err(WINDOWS_CLICK_THROUGH_NOT_IMPLEMENTED.to_string())'),
+  'platform/macos.rs',
+);
+check('action capabilities keep shell disabled', actionsSource.includes('shell_execution_enabled: false'), 'commands/actions.rs');
+check('Tauri shell capability absent', !defaultCapability.includes('shell:'), 'capabilities/default.json');
 
 for (const result of checks) {
   const prefix = result.ok ? 'PASS' : 'FAIL';
