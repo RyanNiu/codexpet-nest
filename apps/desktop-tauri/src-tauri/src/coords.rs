@@ -110,8 +110,8 @@ fn find_screen_for_position(x: f64, y: f64, screens: &[ScreenInfo]) -> (usize, &
     for (i, screen) in screens.iter().enumerate() {
         let left = screen.x as f64;
         let top = screen.y as f64;
-        let right = left + screen.width as f64 / screen.scale_factor;
-        let bottom = top + screen.height as f64 / screen.scale_factor;
+        let right = left + screen.width as f64;
+        let bottom = top + screen.height as f64;
 
         if x >= left && x < right && y >= top && y < bottom {
             return (i, screen);
@@ -208,6 +208,50 @@ mod tests {
         let screens = make_screens();
         let (idx, _) = find_screen_for_position(-1500.0, 400.0, &screens);
         assert_eq!(idx, 1);
+    }
+
+    #[test]
+    fn test_find_screen_for_position_retina_right_half() {
+        let screens = vec![ScreenInfo {
+            x: 0,
+            y: 0,
+            width: 3024,
+            height: 1964,
+            scale_factor: 2.0,
+            is_primary: true,
+        }];
+
+        let (idx, screen) = find_screen_for_position(2400.0, 800.0, &screens);
+
+        assert_eq!(idx, 0);
+        assert!(screen.is_primary);
+    }
+
+    #[test]
+    fn test_find_screen_for_position_secondary_high_dpi_right_half() {
+        let screens = vec![
+            ScreenInfo {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                scale_factor: 1.0,
+                is_primary: true,
+            },
+            ScreenInfo {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+                scale_factor: 1.5,
+                is_primary: false,
+            },
+        ];
+
+        let (idx, screen) = find_screen_for_position(4100.0, 700.0, &screens);
+
+        assert_eq!(idx, 1);
+        assert!(!screen.is_primary);
     }
 
     #[test]
