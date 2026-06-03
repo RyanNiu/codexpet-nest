@@ -12,8 +12,8 @@ pub fn create_settings_window<R: Runtime>(
     let window =
         WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html?label=main".into()))
             .title("CodexPet Nest Settings")
-            .inner_size(400.0, 500.0)
-            .min_inner_size(360.0, 400.0)
+            .inner_size(860.0, 760.0)
+            .min_inner_size(680.0, 560.0)
             .center()
             .visible(false) // Hidden on startup; tray menu shows it
             .resizable(true)
@@ -58,12 +58,12 @@ pub fn create_overlay_window<R: Runtime>(
         if cfg!(debug_assertions) {
             DEBUG_OVERLAY_WIDTH
         } else {
-            220.0
+            320.0
         },
         if cfg!(debug_assertions) {
             DEBUG_OVERLAY_HEIGHT
         } else {
-            72.0
+            180.0
         },
     )
     .resizable(false)

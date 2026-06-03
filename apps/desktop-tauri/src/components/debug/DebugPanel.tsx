@@ -246,7 +246,11 @@ export function DebugPanel() {
 
   return (
     <div style={style.container}>
-      <h2 style={{ fontSize: 16, marginBottom: 8 }}>Phase 1: Risk Spike Debug Panel</h2>
+      <h2 style={{ fontSize: 16, marginBottom: 8 }}>Development Diagnostics</h2>
+      <p style={{ margin: '0 0 12px', color: '#555', fontSize: 12, fontFamily: 'system-ui' }}>
+        This area is for release checks and troubleshooting. Normal overlay settings are available
+        above without opening this panel.
+      </p>
 
       {/* 0. App Info */}
       <div style={style.section}>

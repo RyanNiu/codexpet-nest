@@ -81,7 +81,7 @@ export function OverlayApp() {
   );
   const selectedNestId = selectedNestEntry?.id ?? builtInNestFixtures[0]?.id ?? 'default';
   const overlayMode = settings.overlayMode;
-  const [runtimeStatus, setRuntimeStatus] = useState('Runtime: checking Codex state once...');
+  const [runtimeStatus, setRuntimeStatus] = useState('Checking Codex position...');
   const [importedNest, setImportedNest] = useState<ImportedNestPackage | null>(null);
   const [assetIssue, setAssetIssue] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
@@ -168,7 +168,7 @@ export function OverlayApp() {
   useEffect(() => {
     if (isLoading || settingsLoading || registryLoading) return;
     if (nestFallback && settings.activeNestId) {
-      setRuntimeStatus(`Runtime: registry fallback ${settings.activeNestId} -> ${selectedNestId}`);
+      setRuntimeStatus('Using the default nest because the saved nest is unavailable.');
       return;
     }
     const runtimeDecision = getOverlayRuntimeDecision(settings.overlayMode);
@@ -179,9 +179,7 @@ export function OverlayApp() {
         y: Math.round(position.y),
       })
         .then((clamped) => {
-          setRuntimeStatus(
-            `Runtime: ${settings.overlayMode} from saved position x=${clamped.x}, y=${clamped.y}`,
-          );
+          setRuntimeStatus(`Restored saved overlay position x=${clamped.x}, y=${clamped.y}`);
           writeFollowDiagnostics({
             runtimeMode: settings.overlayMode,
             lastCodexStateReadAt: null,
@@ -191,7 +189,7 @@ export function OverlayApp() {
           });
         })
         .catch((error) => {
-          setRuntimeStatus(`Runtime: ${settings.overlayMode} saved position restore failed`);
+          setRuntimeStatus('Keeping current overlay position.');
           writeFollowDiagnostics({
             runtimeMode: settings.overlayMode,
             lastCodexStateReadAt: null,
@@ -214,7 +212,7 @@ export function OverlayApp() {
         const mascot = bounds?.mascot;
         if (!bounds || !mascot) {
           if (!cancelled) {
-            setRuntimeStatus('Runtime: follow-codex waiting for Codex mascot bounds');
+            setRuntimeStatus('Waiting for Codex pet position.');
             writeFollowDiagnostics({
               runtimeMode: settings.overlayMode,
               lastCodexStateReadAt: readAt,
@@ -256,7 +254,7 @@ export function OverlayApp() {
         const clamped = await invoke<ClampedPosition>('move_overlay_to_clamped', target);
         lastFollowMoveRef.current = { x: clamped.x, y: clamped.y, at: nowMs };
         if (!cancelled) {
-          setRuntimeStatus(`Runtime: follow-codex x=${clamped.x}, y=${clamped.y}`);
+          setRuntimeStatus(`Following Codex pet x=${clamped.x}, y=${clamped.y}`);
           writeFollowDiagnostics({
             runtimeMode: settings.overlayMode,
             lastCodexStateReadAt: readAt,
@@ -267,7 +265,7 @@ export function OverlayApp() {
         }
       } catch (error) {
         if (!cancelled) {
-          setRuntimeStatus('Runtime: follow-codex holding current position');
+          setRuntimeStatus('Holding current position until Codex is available.');
           writeFollowDiagnostics({
             runtimeMode: settings.overlayMode,
             lastCodexStateReadAt: readAt,
@@ -302,12 +300,9 @@ export function OverlayApp() {
     return <div style={{ color: 'white', padding: 20 }}>Loading...</div>;
   }
 
-  // Multi-condition check so debug styles render even when isDebug is not
-  // reliably set by the Rust backend (e.g. serialisation mismatch).
-  const isDevOverlay =
-    config.isDebug === true ||
-    import.meta.env.DEV === true ||
-    window.location.search.includes('label=overlay');
+  const isDevOverlay = config.isDebug === true;
+  const showProductionFeedback = actionResult || nestFallback || assetIssue;
+  const interactiveDisabled = settings.clickThrough;
 
   const updateDragDiagnostics = (patch: Partial<DragDiagnostics>) => {
     setDragDiagnostics((current) => ({ ...current, ...patch }));
@@ -424,9 +419,9 @@ export function OverlayApp() {
           enabled: action.enabled,
         },
       });
-      setActionResult(`${result.status}: ${result.message}`);
+      setActionResult(result.message);
     } catch (error) {
-      setActionResult(`error: ${String(error)}`);
+      setActionResult(`Action failed: ${String(error)}`);
     }
   };
 
@@ -460,7 +455,7 @@ export function OverlayApp() {
           : { background: 'transparent' }),
       }}
     >
-      {/* Fixed DEBUG OVERLAY label — always visible in dev / overlay context */}
+      {/* Fixed DEBUG OVERLAY label: only visible when backend reports debug mode. */}
       {isDevOverlay && (
         <div
           data-testid="debug-overlay-label"
@@ -491,71 +486,78 @@ export function OverlayApp() {
         style={{
           position: 'absolute',
           top: 8,
-          left: 92,
-          right: 178,
-          height: 24,
+          left: isDevOverlay ? 92 : 112,
+          right: isDevOverlay ? 178 : 112,
+          height: 20,
           zIndex: 25,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 999,
-          border: '1px solid rgba(255,255,255,0.45)',
-          background: 'rgba(0,0,0,0.45)',
-          color: '#ffffff',
-          fontSize: 11,
-          fontWeight: 800,
+          border: '1px solid rgba(255,255,255,0.22)',
+          background: 'rgba(15,23,42,0.22)',
+          color: 'rgba(255,255,255,0.62)',
+          fontSize: 10,
+          fontWeight: 700,
           letterSpacing: 0.4,
-          cursor: 'move',
+          cursor: interactiveDisabled ? 'default' : 'move',
+          pointerEvents: interactiveDisabled ? 'none' : 'auto',
         }}
       >
-        Drag Overlay
+        {interactiveDisabled ? 'Click-through on' : 'Drag'}
       </div>
 
-      <div
-        data-testid="overlay-drag-diagnostics"
-        style={{
-          position: 'absolute',
-          left: 8,
-          bottom: 8,
-          zIndex: 30,
-          maxWidth: 220,
-          padding: '3px 6px',
-          borderRadius: 6,
-          background: 'rgba(0,0,0,0.55)',
-          color: '#ffffff',
-          fontSize: 9,
-          lineHeight: 1.25,
-          textAlign: 'left',
-          pointerEvents: 'none',
-        }}
-      >
-        <div>mouse down: {dragDiagnostics.mouseDownCount}</div>
-        <div>last pointer: {dragDiagnostics.lastMousePosition}</div>
-        <div>dragging: {String(dragDiagnostics.draggingActive)}</div>
-        <div>mode: {dragDiagnostics.dragMode}</div>
-        {dragDiagnostics.lastDragError && <div>error: {dragDiagnostics.lastDragError}</div>}
-      </div>
+      {isDevOverlay && (
+        <div
+          data-testid="overlay-drag-diagnostics"
+          style={{
+            position: 'absolute',
+            left: 8,
+            bottom: 8,
+            zIndex: 30,
+            maxWidth: 220,
+            padding: '3px 6px',
+            borderRadius: 6,
+            background: 'rgba(0,0,0,0.55)',
+            color: '#ffffff',
+            fontSize: 9,
+            lineHeight: 1.25,
+            textAlign: 'left',
+            pointerEvents: 'none',
+          }}
+        >
+          <div>mouse down: {dragDiagnostics.mouseDownCount}</div>
+          <div>last pointer: {dragDiagnostics.lastMousePosition}</div>
+          <div>dragging: {String(dragDiagnostics.draggingActive)}</div>
+          <div>mode: {dragDiagnostics.dragMode}</div>
+          {dragDiagnostics.lastDragError && <div>error: {dragDiagnostics.lastDragError}</div>}
+        </div>
+      )}
 
-      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', gap: 4 }}>
-        {registryNests.slice(0, 3).map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            onClick={() => updateSettings({ activeNestId: entry.id }).catch(() => undefined)}
-            style={{
-              fontSize: 9,
-              border: '1px solid rgba(255,255,255,0.5)',
-              borderRadius: 4,
-              background: selectedNestId === entry.id ? '#ffffff' : 'rgba(0,0,0,0.45)',
-              color: selectedNestId === entry.id ? '#111' : '#fff',
-              padding: '2px 4px',
-              cursor: 'pointer',
-            }}
-          >
-            {entry.id.replace('-nest', '')}
-          </button>
-        ))}
-      </div>
+      {isDevOverlay && (
+        <div
+          style={{ position: 'absolute', top: 8, right: 8, zIndex: 20, display: 'flex', gap: 4 }}
+        >
+          {registryNests.slice(0, 3).map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => updateSettings({ activeNestId: entry.id }).catch(() => undefined)}
+              style={{
+                fontSize: 9,
+                border: '1px solid rgba(255,255,255,0.5)',
+                borderRadius: 4,
+                background: selectedNestId === entry.id ? '#ffffff' : 'rgba(0,0,0,0.45)',
+                color: selectedNestId === entry.id ? '#111' : '#fff',
+                padding: '2px 4px',
+                cursor: 'pointer',
+              }}
+            >
+              {entry.id.replace('-nest', '')}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ position: 'relative', zIndex: 5, textAlign: 'center' }}>
         <NestOverlayView
@@ -568,7 +570,24 @@ export function OverlayApp() {
           selectedNestId={selectedNestId}
           slotContent={slotContent}
         />
-        {quickActions.length > 0 && (
+        {interactiveDisabled && quickActions.length > 0 && (
+          <div
+            data-testid="overlay-interaction-disabled"
+            style={{
+              display: 'inline-flex',
+              marginTop: -2,
+              padding: '3px 8px',
+              borderRadius: 999,
+              background: 'rgba(15,23,42,0.42)',
+              color: 'rgba(255,255,255,0.72)',
+              fontSize: 10,
+              fontWeight: 800,
+            }}
+          >
+            Click-through is on
+          </div>
+        )}
+        {!interactiveDisabled && quickActions.length > 0 && (
           <div
             data-testid="quick-actions"
             style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: -2 }}
@@ -578,6 +597,7 @@ export function OverlayApp() {
                 key={action.id}
                 type="button"
                 onClick={() => void executeAction(action)}
+                disabled={interactiveDisabled}
                 style={{
                   border: '1px solid rgba(255,255,255,0.45)',
                   borderRadius: 999,
@@ -586,7 +606,8 @@ export function OverlayApp() {
                   padding: '3px 8px',
                   fontSize: 10,
                   fontWeight: 800,
-                  cursor: 'pointer',
+                  cursor: interactiveDisabled ? 'not-allowed' : 'pointer',
+                  opacity: interactiveDisabled ? 0.54 : 1,
                 }}
               >
                 {confirmingActionId === action.id ? `Confirm ${action.name}` : action.name}
@@ -594,21 +615,34 @@ export function OverlayApp() {
             ))}
           </div>
         )}
-        <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.82, marginTop: -4 }}>
-          {config.appName || 'CodexPet'} v{config.version} · mode: {overlayMode}
-        </div>
-        {nestFallback && settings.activeNestId && (
+        {isDevOverlay && (
+          <div style={{ textAlign: 'center', fontSize: 10, opacity: 0.82, marginTop: -4 }}>
+            {config.appName || 'CodexPet'} v{config.version} · mode: {overlayMode}
+          </div>
+        )}
+        {isDevOverlay && nestFallback && settings.activeNestId && (
           <div style={{ textAlign: 'center', fontSize: 9, color: '#ffcc00', opacity: 0.9 }}>
             Registry fallback: {settings.activeNestId} {'->'} {selectedNestId}
           </div>
         )}
-        {assetIssue && (
+        {isDevOverlay && assetIssue && (
           <div style={{ textAlign: 'center', fontSize: 9, color: '#ffcc00', opacity: 0.9 }}>
             {assetIssue}
           </div>
         )}
-        <div style={{ textAlign: 'center', fontSize: 9, opacity: 0.72 }}>{runtimeStatus}</div>
-        {actionResult && (
+        {isDevOverlay && (
+          <div style={{ textAlign: 'center', fontSize: 9, opacity: 0.72 }}>{runtimeStatus}</div>
+        )}
+        {!isDevOverlay && showProductionFeedback && (
+          <div
+            data-testid="overlay-user-feedback"
+            style={{ textAlign: 'center', fontSize: 9, opacity: 0.78 }}
+          >
+            {actionResult ??
+              (nestFallback ? 'Using default nest.' : 'Some local nest assets are unavailable.')}
+          </div>
+        )}
+        {isDevOverlay && actionResult && (
           <div
             data-testid="action-result"
             style={{ textAlign: 'center', fontSize: 9, opacity: 0.88 }}

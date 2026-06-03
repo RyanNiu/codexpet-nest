@@ -13,6 +13,21 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { DebugPanel } from '@/components/debug/DebugPanel';
 
 const overlayModeOptions: OverlayMode[] = ['follow-codex', 'standalone-fixed'];
+const overlayModeLabels: Record<OverlayMode, string> = {
+  'follow-codex': 'Follow Codex',
+  'standalone-fixed': 'Standalone fixed/manual',
+  'standalone-roam': 'Standalone roam',
+};
+
+interface OverlayFollowDiagnostics {
+  runtimeMode: string;
+  lastCodexStateReadAt: string | null;
+  lastTargetPosition: string | null;
+  followLoopActive: boolean;
+  lastMoveFailure: string | null;
+}
+
+const FOLLOW_DIAGNOSTICS_KEY = 'codexpet.overlay.followDiagnostics';
 
 export function SettingsApp() {
   const { config, isLoading, error } = useAppConfigStore();
@@ -35,6 +50,7 @@ export function SettingsApp() {
   const [importPath, setImportPath] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
   const [actionCapabilities, setActionCapabilities] = useState<string[]>([]);
+  const [followDiagnostics, setFollowDiagnostics] = useState<OverlayFollowDiagnostics | null>(null);
 
   const allNestEntries = getNestEntries(registry);
   const nestEntries = getEnabledNestEntries(registry);
@@ -63,6 +79,16 @@ export function SettingsApp() {
     invoke<{ supportedActionTypes: string[] }>('get_action_capabilities')
       .then((capabilities) => setActionCapabilities(capabilities.supportedActionTypes))
       .catch(() => setActionCapabilities([]));
+  }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(FOLLOW_DIAGNOSTICS_KEY);
+    if (!raw) return;
+    try {
+      setFollowDiagnostics(JSON.parse(raw) as OverlayFollowDiagnostics);
+    } catch {
+      setFollowDiagnostics(null);
+    }
   }, []);
 
   const showOverlay = () => {
@@ -124,7 +150,7 @@ export function SettingsApp() {
         minHeight: '100vh',
         padding: 32,
         fontFamily: 'system-ui, sans-serif',
-        maxWidth: 840,
+        maxWidth: 980,
         margin: '0 auto',
         color: '#18202f',
         background: 'linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%)',
@@ -132,11 +158,11 @@ export function SettingsApp() {
     >
       <header style={{ marginBottom: 24 }}>
         <p style={{ margin: '0 0 6px', color: '#64748b', fontSize: 13, fontWeight: 700 }}>
-          Local Management
+          Desktop App Settings
         </p>
         <h1 style={{ margin: 0, fontSize: 32 }}>{config.appName} Settings</h1>
         <p style={{ margin: '8px 0 0', color: '#64748b' }}>
-          Manage the local nest and overlay behavior stored on this device.
+          Manage the overlay, local nests, widgets, and diagnostics stored on this device.
         </p>
       </header>
 
@@ -174,7 +200,7 @@ export function SettingsApp() {
               <div>
                 <h2 style={sectionTitleStyle}>Overlay</h2>
                 <p style={descriptionStyle}>
-                  Control whether the nest is visible and how it behaves above Codex.
+                  Control whether the nest is visible, interactive, and linked to Codex.
                 </p>
               </div>
               <span style={{ ...pillStyle, color: overlayVisible ? '#047857' : '#b91c1c' }}>
@@ -188,6 +214,32 @@ export function SettingsApp() {
               <button type="button" style={secondaryButtonStyle} onClick={hideOverlay}>
                 Hide Overlay
               </button>
+            </div>
+            <div style={{ ...fieldGridStyle, marginTop: 16 }}>
+              <label style={fieldStyle}>
+                <span style={labelStyle}>Overlay mode</span>
+                <select
+                  aria-label="Overlay mode"
+                  value={settings.overlayMode}
+                  onChange={(event) =>
+                    update({ overlayMode: event.currentTarget.value as OverlayMode }).catch(
+                      () => undefined,
+                    )
+                  }
+                  style={selectStyle}
+                >
+                  {overlayModeOptions.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {overlayModeLabels[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div style={modeHintStyle}>
+                {settings.overlayMode === 'follow-codex'
+                  ? 'Nest follows the Codex pet when Codex state is available. If it is not available, the overlay holds its current or saved position.'
+                  : 'Nest stays at the saved standalone position. Drag the overlay when click-through is off to update the saved position.'}
+              </div>
             </div>
             <label style={toggleRowStyle}>
               <span>
@@ -203,31 +255,39 @@ export function SettingsApp() {
                 onChange={(event) => setClickThrough(event.currentTarget.checked)}
               />
             </label>
+            {settings.clickThrough && (
+              <p style={{ ...descriptionStyle, color: '#b45309', marginTop: 10 }}>
+                Click-through is on, so overlay buttons are visually muted and cannot be clicked
+                until this is turned off.
+              </p>
+            )}
           </section>
 
           <section style={cardStyle}>
-            <h2 style={sectionTitleStyle}>Nest Runtime</h2>
+            <h2 style={sectionTitleStyle}>Follow Status</h2>
+            <p style={{ ...descriptionStyle, marginBottom: 12 }}>
+              Runtime diagnostics stay here instead of inside the overlay.
+            </p>
             <div style={fieldGridStyle}>
-              <label style={fieldStyle}>
-                <span style={labelStyle}>Overlay mode</span>
-                <select
-                  aria-label="Overlay mode"
-                  value={settings.overlayMode}
-                  onChange={(event) =>
-                    update({ overlayMode: event.currentTarget.value as OverlayMode }).catch(
-                      () => undefined,
-                    )
-                  }
-                  style={selectStyle}
-                >
-                  {overlayModeOptions.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div style={statusTileStyle}>
+                <span style={labelStyle}>Mode</span>
+                <strong>{overlayModeLabels[settings.overlayMode]}</strong>
+              </div>
+              <div style={statusTileStyle}>
+                <span style={labelStyle}>Follow loop</span>
+                <strong>{followDiagnostics?.followLoopActive ? 'Active' : 'Not active'}</strong>
+              </div>
+              <div style={statusTileStyle}>
+                <span style={labelStyle}>Last Codex read</span>
+                <strong>{followDiagnostics?.lastCodexStateReadAt ?? 'Not recorded yet'}</strong>
+              </div>
             </div>
+            {followDiagnostics?.lastMoveFailure && (
+              <p style={{ ...descriptionStyle, color: '#b45309', marginTop: 12 }}>
+                Codex follow is unavailable right now. The overlay will keep its current or saved
+                position. Open Development Diagnostics for technical details.
+              </p>
+            )}
             <p style={{ ...descriptionStyle, marginTop: 12 }}>
               {isSaving
                 ? 'Saving settings...'
@@ -353,14 +413,17 @@ export function SettingsApp() {
               <div>Version: {config.version}</div>
               <div>Platform: {config.platform}</div>
               <div>Data Directory: {config.dataDirectory}</div>
-              <div>API URL: {config.apiBaseUrl}</div>
             </dl>
           </section>
 
           <details style={{ ...cardStyle, padding: 0 }}>
             <summary style={{ padding: 18, cursor: 'pointer', fontWeight: 800 }}>
-              Debug Panel
+              Development Diagnostics
             </summary>
+            <p style={{ ...descriptionStyle, padding: '0 18px 12px' }}>
+              Developer-only tools for overlay windows, Codex state, screens, drag diagnostics, and
+              release verification. These controls do not affect normal settings rendering.
+            </p>
             <div style={{ padding: '0 18px 18px' }}>
               <DebugPanel />
             </div>
@@ -451,6 +514,22 @@ const fieldGridStyle: React.CSSProperties = {
 };
 const fieldStyle: React.CSSProperties = { display: 'grid', gap: 6 };
 const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 800, color: '#475569' };
+const modeHintStyle: React.CSSProperties = {
+  ...descriptionStyle,
+  padding: 12,
+  borderRadius: 12,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+};
+const statusTileStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 4,
+  padding: 12,
+  borderRadius: 12,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  minWidth: 0,
+};
 const selectStyle: React.CSSProperties = {
   border: '1px solid #cbd5e1',
   borderRadius: 10,

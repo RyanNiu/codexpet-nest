@@ -29,8 +29,11 @@ describe('SettingsApp', () => {
     expect(screen.getByRole('heading', { name: /Settings/i })).toBeInTheDocument();
     expect(screen.getByText(/Version: 0.1.12/)).toBeInTheDocument();
     expect(screen.getByLabelText('Overlay mode')).toHaveValue('follow-codex');
+    expect(screen.getAllByText('Follow Codex').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('Active nest')).toHaveValue('default');
     expect(screen.getByRole('heading', { name: 'Local Packages / Nests' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Follow Status' })).toBeInTheDocument();
+    expect(screen.getByText(/Runtime diagnostics stay here/)).toBeInTheDocument();
     expect(screen.getAllByText('Capacity Orbit Nest').length).toBeGreaterThan(0);
     expect(screen.getAllByText('nest').length).toBeGreaterThan(0);
     await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible'));
@@ -72,6 +75,51 @@ describe('SettingsApp', () => {
         }),
       );
     });
+  });
+
+  it('should keep overlay mode, click-through, and show-hide controls usable', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    render(<SettingsApp />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Overlay' }));
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('hide_overlay'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Overlay' }));
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('show_overlay'));
+
+    fireEvent.change(screen.getByLabelText('Overlay mode'), {
+      target: { value: 'standalone-fixed' },
+    });
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
+        'save_local_settings',
+        expect.objectContaining({
+          settings: expect.objectContaining({ overlayMode: 'standalone-fixed' }),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Click-through/i }));
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith('set_overlay_click_through', {
+        enabled: true,
+      });
+    });
+  });
+
+  it('keeps development diagnostics collapsed outside normal settings rendering', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    render(<SettingsApp />);
+
+    expect(screen.getByRole('heading', { name: 'Overlay' })).toBeInTheDocument();
+    expect(screen.getByText('Development Diagnostics')).toBeInTheDocument();
+    expect(screen.getByTestId('debug-panel')).toBeInTheDocument();
+    expect(screen.getByText(/Developer-only tools/)).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible'));
   });
 
   it('should display widgets/actions and toggle action enabled', async () => {

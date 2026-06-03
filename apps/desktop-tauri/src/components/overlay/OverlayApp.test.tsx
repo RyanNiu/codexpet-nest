@@ -38,7 +38,7 @@ describe('OverlayApp', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
-  it('should render app name, version, and nest render model when config is loaded', async () => {
+  it('should render production nest UI without debug runtime text when config is loaded', async () => {
     useAppConfigStore.getState().setConfig({
       ...FALLBACK_CONFIG,
       appName: 'CodexPet',
@@ -51,8 +51,12 @@ describe('OverlayApp', () => {
     expect(screen.getByTestId('widget-slot-clock')).toBeInTheDocument();
     expect(screen.getByText(/Usage 68%/)).toBeInTheDocument();
     expect(screen.getByTestId('quick-actions')).toBeInTheDocument();
-    expect(screen.getByText(/v0.1.12/)).toBeInTheDocument();
-    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
+    expect(screen.queryByTestId('debug-overlay-label')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('debug-platform-label')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('overlay-drag-diagnostics')).not.toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_codex_state'));
+    expect(screen.queryByText(/Runtime:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/mode:/)).not.toBeInTheDocument();
   });
 
   it('should execute quick action and show result', async () => {
@@ -63,7 +67,7 @@ describe('OverlayApp', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Docs' }));
 
-    expect(await screen.findByText(/Action: mocked: Action completed in test/)).toBeInTheDocument();
+    expect(await screen.findByText(/Action: Action completed in test/)).toBeInTheDocument();
     expect(vi.mocked(invoke)).toHaveBeenCalledWith(
       'execute_quick_action',
       expect.objectContaining({
@@ -77,7 +81,7 @@ describe('OverlayApp', () => {
     useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
-    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
+    expect(await screen.findByText(/Waiting for Codex pet position/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Open Codex Path' }));
 
@@ -106,24 +110,59 @@ describe('OverlayApp', () => {
     expect(screen.getByTestId('debug-overlay-label')).toHaveTextContent('DEBUG OVERLAY');
     expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
     expect(screen.getByTestId('overlay-drag-region')).toHaveAttribute('data-tauri-drag-region');
-    expect(screen.getByText('Drag Overlay')).toBeInTheDocument();
-    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
+    expect(screen.getByText('Drag')).toBeInTheDocument();
+    expect(await screen.findByText(/Waiting for Codex pet position/)).toBeInTheDocument();
   });
 
-  it('should render debug overlay elements in DEV mode even if isDebug is not set', async () => {
-    // Simulate Vite DEV mode: isDevOverlay falls back to import.meta.env.DEV.
+  it('should not render debug overlay elements in production mode', async () => {
     useAppConfigStore.getState().setConfig({
       ...FALLBACK_CONFIG,
-      isDebug: undefined as unknown as boolean, // simulate missing field
+      isDebug: false,
     });
     useRegistryStore.setState({ registry, isLoading: false });
     useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
     render(<OverlayApp />);
 
-    // import.meta.env.DEV is true in vitest, so debug elements must render.
-    expect(screen.getByTestId('debug-overlay-label')).toBeInTheDocument();
-    expect(screen.getByTestId('debug-platform-label')).toBeInTheDocument();
-    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
+    expect(screen.queryByTestId('debug-overlay-label')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('debug-platform-label')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('overlay-drag-diagnostics')).not.toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_codex_state'));
+  });
+
+  it('should show click-through status instead of clickable actions when interaction is disabled', async () => {
+    useAppConfigStore.getState().setConfig({ ...FALLBACK_CONFIG, isDebug: false });
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({
+      settings: { ...createDefaultSettings(), clickThrough: true },
+      isLoading: false,
+    });
+
+    render(<OverlayApp />);
+
+    expect(screen.getByTestId('overlay-interaction-disabled')).toHaveTextContent(
+      'Click-through is on',
+    );
+    expect(screen.queryByTestId('quick-actions')).not.toBeInTheDocument();
+    expect(screen.getByText('Click-through on')).toBeInTheDocument();
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_codex_state'));
+  });
+
+  it('should hold position without technical error text when Codex state is unavailable', async () => {
+    useAppConfigStore.getState().setConfig({ ...FALLBACK_CONFIG, isDebug: false });
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === 'get_codex_state') return Promise.reject(new Error('state file missing'));
+      if (command === 'set_overlay_click_through') return Promise.resolve(undefined);
+      return Promise.reject(new Error(`Unhandled invoke command: ${String(command)}`));
+    });
+
+    render(<OverlayApp />);
+
+    await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('get_codex_state'));
+    expect(screen.queryByText(/state file missing/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Error:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Runtime:/)).not.toBeInTheDocument();
   });
 
   it('should switch built-in nest fixture in the overlay', async () => {
@@ -136,7 +175,7 @@ describe('OverlayApp', () => {
 
     expect(await screen.findByText('capacity-orbit-nest')).toBeInTheDocument();
     expect(await screen.findByTestId('metric-gauge-quota-ring')).toBeInTheDocument();
-    expect(await screen.findByText(/waiting for Codex mascot bounds/)).toBeInTheDocument();
+    expect(await screen.findByText(/Waiting for Codex pet position/)).toBeInTheDocument();
   });
 
   it('should render saved built-in nest and overlay mode', async () => {
@@ -155,7 +194,7 @@ describe('OverlayApp', () => {
 
     expect(screen.getByText('basket-pomodoro-nest')).toBeInTheDocument();
     expect(screen.getByText(/mode: standalone-fixed/)).toBeInTheDocument();
-    expect(await screen.findByText(/standalone-fixed from saved position/)).toBeInTheDocument();
+    expect(await screen.findByText(/Restored saved overlay position/)).toBeInTheDocument();
   });
 
   it('should fallback to default when saved active nest is not in registry', async () => {
@@ -173,9 +212,7 @@ describe('OverlayApp', () => {
 
     expect(screen.getAllByText('default').length).toBeGreaterThan(0);
     expect(screen.getByText(/Registry fallback: missing-nest -> default/)).toBeInTheDocument();
-    expect(
-      await screen.findByText(/registry fallback missing-nest -> default/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Using the default nest/)).toBeInTheDocument();
   });
 
   it('should render imported nest issue when local asset is missing', async () => {
@@ -306,7 +343,7 @@ describe('OverlayApp', () => {
 
     render(<OverlayApp />);
 
-    expect(await screen.findByText(/follow-codex x=256, y=150/)).toBeInTheDocument();
+    expect(await screen.findByText(/Following Codex pet x=256, y=150/)).toBeInTheDocument();
     expect(vi.mocked(invoke)).toHaveBeenCalledWith('move_overlay_to_clamped', { x: 256, y: 150 });
   });
 
