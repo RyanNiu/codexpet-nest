@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { validateWidgetActionConfig } from '@codexpet/core';
 import type { ActionPlatform, OverlayMode, QuickActionSettings } from '@codexpet/core';
@@ -66,6 +66,16 @@ export function SettingsApp() {
     actionPlatform,
   );
 
+  const refreshFollowDiagnostics = useCallback(() => {
+    const raw = window.localStorage.getItem(FOLLOW_DIAGNOSTICS_KEY);
+    if (!raw) return;
+    try {
+      setFollowDiagnostics(JSON.parse(raw) as OverlayFollowDiagnostics);
+    } catch {
+      setFollowDiagnostics(null);
+    }
+  }, []);
+
   useEffect(() => {
     invoke<boolean>('is_overlay_visible')
       .then((visible) => {
@@ -82,14 +92,10 @@ export function SettingsApp() {
   }, []);
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(FOLLOW_DIAGNOSTICS_KEY);
-    if (!raw) return;
-    try {
-      setFollowDiagnostics(JSON.parse(raw) as OverlayFollowDiagnostics);
-    } catch {
-      setFollowDiagnostics(null);
-    }
-  }, []);
+    refreshFollowDiagnostics();
+    const interval = window.setInterval(refreshFollowDiagnostics, 1_000);
+    return () => window.clearInterval(interval);
+  }, [refreshFollowDiagnostics]);
 
   const showOverlay = () => {
     invoke('show_overlay')

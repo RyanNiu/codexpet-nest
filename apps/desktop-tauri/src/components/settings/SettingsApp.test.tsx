@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { invoke } from '@tauri-apps/api/core';
 import { createDefaultSettings } from '@codexpet/core';
 import { SettingsApp } from './SettingsApp';
@@ -14,6 +14,10 @@ vi.mock('@/components/debug/DebugPanel', () => ({
 
 describe('SettingsApp', () => {
   const registry = { schemaVersion: 1, packages: builtInNestRegistryEntries };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('should show loading state', async () => {
     render(<SettingsApp />);
@@ -120,6 +124,35 @@ describe('SettingsApp', () => {
     expect(screen.getByTestId('debug-panel')).toBeInTheDocument();
     expect(screen.getByText(/Developer-only tools/)).toBeInTheDocument();
     await waitFor(() => expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible'));
+  });
+
+  it('refreshes follow diagnostics while settings stays open', async () => {
+    vi.useFakeTimers();
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+    render(<SettingsApp />);
+
+    expect(screen.getByText('Not recorded yet')).toBeInTheDocument();
+
+    window.localStorage.setItem(
+      'codexpet.overlay.followDiagnostics',
+      JSON.stringify({
+        runtimeMode: 'follow-codex',
+        lastCodexStateReadAt: '2026-06-03T12:00:00.000Z',
+        lastTargetPosition: 'x=120, y=140',
+        followLoopActive: true,
+        lastMoveFailure: null,
+      }),
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByText('2026-06-03T12:00:00.000Z')).toBeInTheDocument();
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('is_overlay_visible');
   });
 
   it('should display widgets/actions and toggle action enabled', async () => {
