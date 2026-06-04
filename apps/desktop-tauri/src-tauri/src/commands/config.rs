@@ -28,6 +28,14 @@ pub struct ImportedNestPackage {
 }
 
 const LOCAL_SNAPSHOT_SCHEMA_VERSION: u64 = 1;
+const CURRENT_SETTINGS_SCHEMA_VERSION: u64 = 3;
+const CURRENT_REGISTRY_SCHEMA_VERSION: u64 = 1;
+
+#[derive(Debug)]
+struct SnapshotBackup {
+    target: PathBuf,
+    backup: Option<PathBuf>,
+}
 
 /// Returns the unified application configuration to the frontend.
 #[tauri::command]
@@ -133,8 +141,15 @@ pub fn import_local_snapshot(
     let path = PathBuf::from(import_path);
     let snapshot = read_json_file(&path, "local snapshot")?;
     let (settings, registry) = parse_local_snapshot(&snapshot)?;
-    write_json_file(&settings_path(config.inner()), &settings, "settings")?;
-    write_json_file(&registry_path(config.inner()), &registry, "registry")?;
+    let settings_contents = serialize_json_value(&settings, "settings")?;
+    let registry_contents = serialize_json_value(&registry, "registry")?;
+    replace_snapshot_files(
+        &settings_path(config.inner()),
+        &registry_path(config.inner()),
+        &settings_contents,
+        &registry_contents,
+        false,
+    )?;
     Ok(serde_json::json!({
         "settings": settings,
         "registry": registry,
@@ -268,8 +283,7 @@ fn write_json_file(path: &PathBuf, value: &Value, label: &str) -> Result<(), Str
         )
     })?;
 
-    let contents = serde_json::to_string_pretty(value)
-        .map_err(|error| format!("Failed to serialize {}: {}", label, error))?;
+    let contents = serialize_json_value(value, label)?;
     fs::write(path, contents).map_err(|error| {
         format!(
             "Failed to write {} file {}: {}",
@@ -278,6 +292,11 @@ fn write_json_file(path: &PathBuf, value: &Value, label: &str) -> Result<(), Str
             error
         )
     })
+}
+
+fn serialize_json_value(value: &Value, label: &str) -> Result<String, String> {
+    serde_json::to_string_pretty(value)
+        .map_err(|error| format!("Failed to serialize {}: {}", label, error))
 }
 
 fn read_json_file(path: &Path, label: &str) -> Result<Value, String> {
@@ -388,20 +407,249 @@ fn parse_local_snapshot(snapshot: &Value) -> Result<(Value, Value), String> {
 }
 
 fn validate_snapshot_payload(settings: &Value, registry: &Value) -> Result<(), String> {
-    if !settings.is_object() {
-        return Err("Local snapshot settings must be an object".to_string());
+    validate_snapshot_settings(settings)?;
+    validate_snapshot_registry(registry)?;
+    Ok(())
+}
+
+fn validate_snapshot_settings(settings: &Value) -> Result<(), String> {
+    let object = settings
+        .as_object()
+        .ok_or_else(|| "Local snapshot settings must be an object".to_string())?;
+    match object.get("schemaVersion").and_then(Value::as_u64) {
+        Some(1..=CURRENT_SETTINGS_SCHEMA_VERSION) => Ok(()),
+        Some(version) => Err(format!(
+            "Unsupported local snapshot settings schemaVersion {}",
+            version
+        )),
+        None => Err("Local snapshot settings requires schemaVersion".to_string()),
     }
+}
+
+fn validate_snapshot_registry(registry: &Value) -> Result<(), String> {
     let registry_object = registry
         .as_object()
         .ok_or_else(|| "Local snapshot registry must be an object".to_string())?;
-    if !registry_object
+    match registry_object.get("schemaVersion").and_then(Value::as_u64) {
+        Some(CURRENT_REGISTRY_SCHEMA_VERSION) => {}
+        Some(version) => {
+            return Err(format!(
+                "Unsupported local snapshot registry schemaVersion {}",
+                version
+            ))
+        }
+        None => return Err("Local snapshot registry requires schemaVersion".to_string()),
+    }
+    let packages = registry_object
         .get("packages")
-        .map(Value::is_array)
-        .unwrap_or(false)
-    {
-        return Err("Local snapshot registry requires packages array".to_string());
+        .and_then(Value::as_array)
+        .ok_or_else(|| "Local snapshot registry requires packages array".to_string())?;
+    for (index, entry) in packages.iter().enumerate() {
+        validate_snapshot_registry_entry(entry, index)?;
     }
     Ok(())
+}
+
+fn validate_snapshot_registry_entry(entry: &Value, index: usize) -> Result<(), String> {
+    let object = entry.as_object().ok_or_else(|| {
+        format!(
+            "Local snapshot registry package {} must be an object",
+            index
+        )
+    })?;
+    for key in ["id", "version", "name", "manifestPath", "assetRoot"] {
+        let value = object.get(key).and_then(Value::as_str).unwrap_or("");
+        if value.is_empty() {
+            return Err(format!(
+                "Local snapshot registry package {} requires {}",
+                index, key
+            ));
+        }
+    }
+    match object.get("type").and_then(Value::as_str) {
+        Some("pet" | "nest" | "codexpet.pet" | "codexpet.nest") => {}
+        Some(value) => {
+            return Err(format!(
+                "Local snapshot registry package {} has unsupported type {}",
+                index, value
+            ))
+        }
+        None => {
+            return Err(format!(
+                "Local snapshot registry package {} requires type",
+                index
+            ))
+        }
+    }
+    if object
+        .get("enabled")
+        .map(|value| !value.is_boolean())
+        .unwrap_or(false)
+    {
+        return Err(format!(
+            "Local snapshot registry package {} enabled must be boolean",
+            index
+        ));
+    }
+    Ok(())
+}
+
+fn replace_snapshot_files(
+    settings_path: &Path,
+    registry_path: &Path,
+    settings_contents: &str,
+    registry_contents: &str,
+    fail_after_settings_replace: bool,
+) -> Result<(), String> {
+    let settings_temp = temp_path_for(settings_path, "settings");
+    let registry_temp = temp_path_for(registry_path, "registry");
+    write_staged_file(&settings_temp, settings_contents, "settings")?;
+    if let Err(error) = write_staged_file(&registry_temp, registry_contents, "registry") {
+        let _ = fs::remove_file(&settings_temp);
+        return Err(error);
+    }
+
+    let mut backups = Vec::new();
+    let result = (|| -> Result<(), String> {
+        backups.push(backup_target(settings_path, "settings")?);
+        backups.push(backup_target(registry_path, "registry")?);
+        replace_from_temp(&settings_temp, settings_path, "settings")?;
+        if fail_after_settings_replace {
+            return Err("Simulated registry replace failure".to_string());
+        }
+        replace_from_temp(&registry_temp, registry_path, "registry")?;
+        Ok(())
+    })();
+
+    match result {
+        Ok(()) => {
+            cleanup_backups(&backups);
+            Ok(())
+        }
+        Err(error) => {
+            let _ = fs::remove_file(&settings_temp);
+            let _ = fs::remove_file(&registry_temp);
+            rollback_backups(&backups);
+            Err(error)
+        }
+    }
+}
+
+fn write_staged_file(path: &Path, contents: &str, label: &str) -> Result<(), String> {
+    let parent = path.parent().ok_or_else(|| {
+        format!(
+            "{} temp file has no parent directory: {}",
+            label,
+            path.display()
+        )
+    })?;
+    fs::create_dir_all(parent).map_err(|error| {
+        format!(
+            "Failed to create {} temp directory {}: {}",
+            label,
+            parent.display(),
+            error
+        )
+    })?;
+    fs::write(path, contents).map_err(|error| {
+        format!(
+            "Failed to write {} temp file {}: {}",
+            label,
+            path.display(),
+            error
+        )
+    })
+}
+
+fn backup_target(target: &Path, label: &str) -> Result<SnapshotBackup, String> {
+    let backup = backup_path_for(target, label);
+    if backup.exists() {
+        fs::remove_file(&backup).map_err(|error| {
+            format!(
+                "Failed to remove stale {} backup {}: {}",
+                label,
+                backup.display(),
+                error
+            )
+        })?;
+    }
+    if target.exists() {
+        fs::rename(target, &backup).map_err(|error| {
+            format!(
+                "Failed to stage existing {} file {}: {}",
+                label,
+                target.display(),
+                error
+            )
+        })?;
+        Ok(SnapshotBackup {
+            target: target.to_path_buf(),
+            backup: Some(backup),
+        })
+    } else {
+        Ok(SnapshotBackup {
+            target: target.to_path_buf(),
+            backup: None,
+        })
+    }
+}
+
+fn replace_from_temp(temp: &Path, target: &Path, label: &str) -> Result<(), String> {
+    fs::rename(temp, target).map_err(|error| {
+        format!(
+            "Failed to replace {} file {}: {}",
+            label,
+            target.display(),
+            error
+        )
+    })
+}
+
+fn rollback_backups(backups: &[SnapshotBackup]) {
+    for backup in backups.iter().rev() {
+        let _ = fs::remove_file(&backup.target);
+        if let Some(path) = &backup.backup {
+            let _ = fs::rename(path, &backup.target);
+        }
+    }
+}
+
+fn cleanup_backups(backups: &[SnapshotBackup]) {
+    for backup in backups {
+        if let Some(path) = &backup.backup {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
+
+fn temp_path_for(target: &Path, label: &str) -> PathBuf {
+    sibling_path_for(target, label, "tmp")
+}
+
+fn backup_path_for(target: &Path, label: &str) -> PathBuf {
+    sibling_path_for(target, label, "bak")
+}
+
+fn sibling_path_for(target: &Path, label: &str, extension: &str) -> PathBuf {
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(label);
+    parent.join(format!(
+        ".{}.codexpet-import-{}.{}.{}",
+        file_name,
+        std::process::id(),
+        timestamp_nanos(),
+        extension
+    ))
+}
+
+fn timestamp_nanos() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0)
 }
 
 fn safe_join(root: &Path, relative: &str) -> Result<PathBuf, String> {
@@ -573,7 +821,18 @@ mod tests {
             "schemaVersion": 1,
             "data": {
                 "settings": { "schemaVersion": 3, "activeNestId": null },
-                "registry": { "schemaVersion": 1, "packages": [] }
+                "registry": {
+                    "schemaVersion": 1,
+                    "packages": [{
+                        "id": "default",
+                        "type": "nest",
+                        "version": "1.0.0",
+                        "name": "Default",
+                        "manifestPath": "builtin/nests/default/codexpet-package.json",
+                        "assetRoot": "builtin/nests/default",
+                        "enabled": true
+                    }]
+                }
             }
         });
 
@@ -588,7 +847,7 @@ mod tests {
                 .and_then(Value::as_array)
                 .unwrap()
                 .len(),
-            0
+            1
         );
     }
 
@@ -605,5 +864,107 @@ mod tests {
 
         assert!(parse_local_snapshot(&missing_data).is_err());
         assert!(parse_local_snapshot(&missing_packages).is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_snapshot_settings_schema_version() {
+        let snapshot = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 999 },
+                "registry": { "schemaVersion": 1, "packages": [] }
+            }
+        });
+
+        let error = parse_local_snapshot(&snapshot).unwrap_err();
+        assert!(error.contains("settings schemaVersion"));
+    }
+
+    #[test]
+    fn rejects_invalid_snapshot_registry_schema_version() {
+        let snapshot = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 3 },
+                "registry": { "schemaVersion": 999, "packages": [] }
+            }
+        });
+
+        let error = parse_local_snapshot(&snapshot).unwrap_err();
+        assert!(error.contains("registry schemaVersion"));
+    }
+
+    #[test]
+    fn rejects_invalid_snapshot_registry_package_entry() {
+        let not_object = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 3 },
+                "registry": { "schemaVersion": 1, "packages": ["invalid"] }
+            }
+        });
+        let missing_field = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 3 },
+                "registry": {
+                    "schemaVersion": 1,
+                    "packages": [{
+                        "id": "default",
+                        "type": "nest",
+                        "version": "1.0.0",
+                        "name": "Default",
+                        "manifestPath": "builtin/nests/default/codexpet-package.json"
+                    }]
+                }
+            }
+        });
+
+        assert!(parse_local_snapshot(&not_object)
+            .unwrap_err()
+            .contains("must be an object"));
+        assert!(parse_local_snapshot(&missing_field)
+            .unwrap_err()
+            .contains("assetRoot"));
+    }
+
+    #[test]
+    fn failed_snapshot_replace_rolls_back_half_import() {
+        let dir = unique_test_dir("snapshot-rollback");
+        fs::create_dir_all(&dir).unwrap();
+        let settings_path = dir.join("settings.json");
+        let registry_path = dir.join("registry.json");
+        let original_settings = r#"{"schemaVersion":3,"activeNestId":"old"}"#;
+        let original_registry = r#"{"schemaVersion":1,"packages":[]}"#;
+        fs::write(&settings_path, original_settings).unwrap();
+        fs::write(&registry_path, original_registry).unwrap();
+
+        let result = replace_snapshot_files(
+            &settings_path,
+            &registry_path,
+            r#"{"schemaVersion":3,"activeNestId":"new"}"#,
+            r#"{"schemaVersion":1,"packages":[{"id":"new"}]}"#,
+            true,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(
+            fs::read_to_string(&settings_path).unwrap(),
+            original_settings
+        );
+        assert_eq!(
+            fs::read_to_string(&registry_path).unwrap(),
+            original_registry
+        );
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    fn unique_test_dir(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "codexpet-{}-{}-{}",
+            label,
+            std::process::id(),
+            timestamp_nanos()
+        ))
     }
 }

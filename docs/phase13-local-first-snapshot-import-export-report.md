@@ -45,6 +45,8 @@ Not included:
 - Added a Settings `Local Snapshot` section with explicit export/import paths.
 - Added frontend tests for exporting a local snapshot and importing then reloading local stores.
 - Added Rust tests for local snapshot envelope validation.
+- Hardened snapshot import after review so settings/registry replacement is staged with backup rollback instead of sequential overwrite.
+- Hardened snapshot payload validation so obviously invalid settings/registry payloads are rejected before disk writes.
 - Updated release smoke checks so the snapshot UI and Tauri command registrations are source-checked.
 
 ## Snapshot Format
@@ -66,7 +68,10 @@ The snapshot contains current normalized settings and local registry metadata. I
 
 - Export writes a JSON file to the path typed by the user.
 - Import reads a JSON file from the path typed by the user.
-- Import replaces local `settings.json` and `registry.json` contents through the existing app data directory.
+- Import replaces local `settings.json` and `registry.json` contents through the existing app data directory using staged writes and backup rollback.
+- Import first parses and validates the full snapshot, then serializes both settings and registry before touching existing files.
+- Import writes same-directory temporary files before replacing either target file.
+- Import backs up both existing target files before replacement and rolls back if the replacement sequence fails, avoiding a settings-imported / registry-not-imported mixed state.
 - After import, the frontend reloads settings and registry through the existing store loaders.
 - Existing `@codexpet/core` normalization/migration remains the authority for frontend state shape after reload.
 
@@ -74,7 +79,11 @@ The snapshot contains current normalized settings and local registry metadata. I
 
 - Snapshot import validates that the envelope is an object with supported `schemaVersion`.
 - Snapshot import requires `data.settings` and `data.registry`.
-- Snapshot import requires registry metadata to include a `packages` array.
+- Snapshot import requires settings to include a compatible `schemaVersion`.
+- Snapshot import requires registry metadata to include compatible `schemaVersion` and a `packages` array.
+- Snapshot import validates each package entry is an object with the minimum fields needed by later registry consumption: `id`, `type`, `version`, `name`, `manifestPath`, and `assetRoot`.
+- Snapshot import rejects invalid settings/registry payloads before writing to disk; it does not rely on frontend fallback after writing invalid data.
+- Snapshot import uses staged writes and backup rollback so replacement failures do not leave a half-imported local state.
 - Snapshot export/import does not enable shell actions.
 - Snapshot export/import does not change click-through behavior.
 - Snapshot export/import does not assume Windows Codex state schema.
@@ -89,6 +98,9 @@ The snapshot contains current normalized settings and local registry metadata. I
   - Adds mocked `export_local_snapshot` and `import_local_snapshot` commands.
 - `apps/desktop-tauri/src-tauri/src/commands/config.rs`
   - Adds Rust tests for valid and invalid local snapshot shapes.
+  - Adds Rust tests rejecting invalid settings schema versions.
+  - Adds Rust tests rejecting invalid registry schema versions and package entries.
+  - Adds Rust test proving a simulated replacement failure rolls back instead of leaving half-imported files.
 - `scripts/check-release-readiness.mjs`
   - Checks Local Snapshot UI presence.
   - Checks Tauri command registration.
@@ -106,7 +118,7 @@ The snapshot contains current normalized settings and local registry metadata. I
 | `pnpm --filter @codexpet/desktop-tauri test` | Passed | Targeted desktop tests passed before the full workspace run: 41 tests. |
 | `cd apps/desktop-tauri/src-tauri && cargo fmt --all --check` | Passed after formatting | Initial check found formatting diffs in new snapshot code; `cargo fmt --all` was run, then the check passed. |
 | `cd apps/desktop-tauri/src-tauri && cargo clippy --all-targets -- -D warnings` | Passed | No warnings. |
-| `cd apps/desktop-tauri/src-tauri && cargo test` | Passed | 30 lib tests, 0 main tests, 3 config integration tests, and 0 doc tests passed. |
+| `cd apps/desktop-tauri/src-tauri && cargo test` | Passed | 34 lib tests, 0 main tests, 3 config integration tests, and 0 doc tests passed. |
 | `pnpm tauri:build:app` | Passed on macOS | Produced `/Users/ryanniu/Documents/Project/codexpet-nest-next/apps/desktop-tauri/src-tauri/target/release/bundle/macos/CodexPet Nest.app`. This is not Windows artifact verification. |
 
 Full local macOS validation passed. Windows CI and Windows GUI validation remain separate pending work.
