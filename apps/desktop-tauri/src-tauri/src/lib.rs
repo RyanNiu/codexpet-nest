@@ -63,6 +63,8 @@ pub fn run() {
             commands::config::load_local_registry,
             commands::config::import_local_package,
             commands::config::load_local_nest_package,
+            commands::config::export_local_snapshot,
+            commands::config::import_local_snapshot,
             commands::config::save_local_registry,
             commands::config::save_local_settings,
             commands::debug::get_codex_state,

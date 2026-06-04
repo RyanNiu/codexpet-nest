@@ -27,6 +27,11 @@ interface OverlayFollowDiagnostics {
   lastMoveFailure: string | null;
 }
 
+interface LocalSnapshotExportResult {
+  exportPath: string;
+  exportedAt: string;
+}
+
 const FOLLOW_DIAGNOSTICS_KEY = 'codexpet.overlay.followDiagnostics';
 
 export function SettingsApp() {
@@ -36,6 +41,7 @@ export function SettingsApp() {
     isLoading: registryLoading,
     isSaving: registrySaving,
     error: registryError,
+    load: loadRegistry,
     importPackage,
   } = useRegistryStore();
   const {
@@ -43,12 +49,17 @@ export function SettingsApp() {
     isLoading: settingsLoading,
     isSaving,
     error: settingsError,
+    load: loadSettings,
     update,
   } = useSettingsStore();
   const [overlayVisible, setOverlayVisible] = useState<boolean | null>(null);
   const [overlayControlError, setOverlayControlError] = useState<string | null>(null);
   const [importPath, setImportPath] = useState('');
   const [importError, setImportError] = useState<string | null>(null);
+  const [snapshotExportPath, setSnapshotExportPath] = useState('');
+  const [snapshotImportPath, setSnapshotImportPath] = useState('');
+  const [snapshotStatus, setSnapshotStatus] = useState<string | null>(null);
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [actionCapabilities, setActionCapabilities] = useState<string[]>([]);
   const [followDiagnostics, setFollowDiagnostics] = useState<OverlayFollowDiagnostics | null>(null);
 
@@ -140,6 +151,38 @@ export function SettingsApp() {
       setImportPath('');
     } catch (importFailure) {
       setImportError(String(importFailure));
+    }
+  };
+
+  const exportLocalSnapshot = async () => {
+    const trimmed = snapshotExportPath.trim();
+    if (!trimmed) return;
+    setSnapshotError(null);
+    setSnapshotStatus(null);
+    try {
+      const result = await invoke<LocalSnapshotExportResult>('export_local_snapshot', {
+        exportPath: trimmed,
+        settings,
+        registry,
+      });
+      setSnapshotStatus(`Exported local snapshot to ${result.exportPath}`);
+    } catch (exportFailure) {
+      setSnapshotError(String(exportFailure));
+    }
+  };
+
+  const importLocalSnapshot = async () => {
+    const trimmed = snapshotImportPath.trim();
+    if (!trimmed) return;
+    setSnapshotError(null);
+    setSnapshotStatus(null);
+    try {
+      await invoke('import_local_snapshot', { importPath: trimmed });
+      await Promise.all([loadSettings(), loadRegistry()]);
+      setSnapshotImportPath('');
+      setSnapshotStatus('Imported local snapshot. Settings and registry were reloaded locally.');
+    } catch (importFailure) {
+      setSnapshotError(String(importFailure));
     }
   };
 
@@ -411,6 +454,61 @@ export function SettingsApp() {
                 </button>
               ))}
             </div>
+          </section>
+
+          <section style={cardStyle}>
+            <h2 style={sectionTitleStyle}>Local Snapshot</h2>
+            <p style={{ ...descriptionStyle, marginBottom: 12 }}>
+              Export or import this device&apos;s settings and local registry metadata. Package
+              asset folders are not copied, so imported local package paths must still exist on this
+              device.
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  aria-label="Local snapshot export path"
+                  value={snapshotExportPath}
+                  onChange={(event) => setSnapshotExportPath(event.currentTarget.value)}
+                  placeholder={`${config.dataDirectory}/codexpet-nest-snapshot.json`}
+                  style={{ ...selectStyle, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  style={secondaryButtonStyle}
+                  onClick={() => void exportLocalSnapshot()}
+                  disabled={snapshotExportPath.trim().length === 0}
+                >
+                  Export Snapshot
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  aria-label="Local snapshot import path"
+                  value={snapshotImportPath}
+                  onChange={(event) => setSnapshotImportPath(event.currentTarget.value)}
+                  placeholder="/path/to/codexpet-nest-snapshot.json"
+                  style={{ ...selectStyle, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  style={secondaryButtonStyle}
+                  onClick={() => void importLocalSnapshot()}
+                  disabled={snapshotImportPath.trim().length === 0}
+                >
+                  Import Snapshot
+                </button>
+              </div>
+            </div>
+            {snapshotStatus && (
+              <p role="status" style={{ color: '#047857', margin: '12px 0 0' }}>
+                {snapshotStatus}
+              </p>
+            )}
+            {snapshotError && (
+              <p role="alert" style={{ color: '#b91c1c', margin: '12px 0 0' }}>
+                Snapshot error: {snapshotError}
+              </p>
+            )}
           </section>
 
           <section style={cardStyle}>

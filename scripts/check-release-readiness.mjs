@@ -36,6 +36,8 @@ const traySource = readText('apps/desktop-tauri/src-tauri/src/tray/builder.rs');
 const windowSource = readText('apps/desktop-tauri/src-tauri/src/windows/setup.rs');
 const platformMacosSource = readText('apps/desktop-tauri/src-tauri/src/platform/macos.rs');
 const actionsSource = readText('apps/desktop-tauri/src-tauri/src/commands/actions.rs');
+const configCommandsSource = readText('apps/desktop-tauri/src-tauri/src/commands/config.rs');
+const tauriLibSource = readText('apps/desktop-tauri/src-tauri/src/lib.rs');
 const defaultCapability = readText('apps/desktop-tauri/src-tauri/capabilities/default.json');
 const windowsBuildWorkflowPath = '.github/workflows/windows-build.yml';
 const windowsBuildWorkflowExists = existsSync(join(root, windowsBuildWorkflowPath));
@@ -65,6 +67,10 @@ check('click-through hides quick actions', overlaySource.includes('overlay-inter
 check('production missing asset feedback is gentle', overlaySource.includes('Some local nest assets are unavailable.'), 'OverlayApp.tsx');
 check('development diagnostics present', settingsSource.includes('Development Diagnostics'), 'SettingsApp.tsx');
 check('follow diagnostics refresh interval', settingsSource.includes('setInterval(refreshFollowDiagnostics, 1_000)'), 'SettingsApp.tsx');
+check('local snapshot UI present', settingsSource.includes('Local Snapshot'), 'SettingsApp.tsx');
+check('local snapshot export command registered', tauriLibSource.includes('commands::config::export_local_snapshot'), 'src-tauri/src/lib.rs');
+check('local snapshot import command registered', tauriLibSource.includes('commands::config::import_local_snapshot'), 'src-tauri/src/lib.rs');
+check('local snapshot notes do not copy package assets', configCommandsSource.includes('package asset folders are not copied'), 'commands/config.rs');
 check(
   'Windows click-through explicitly unimplemented',
   platformMacosSource.includes('Windows click-through is not implemented yet') &&

@@ -27,6 +27,8 @@ pub struct ImportedNestPackage {
     missing_assets: Vec<String>,
 }
 
+const LOCAL_SNAPSHOT_SCHEMA_VERSION: u64 = 1;
+
 /// Returns the unified application configuration to the frontend.
 #[tauri::command]
 pub fn get_app_config(config: State<'_, AppConfig>) -> Result<AppConfig, String> {
@@ -84,6 +86,60 @@ pub fn load_local_registry(config: State<'_, AppConfig>) -> Result<Option<Value>
 pub fn save_local_registry(config: State<'_, AppConfig>, registry: Value) -> Result<(), String> {
     let path = registry_path(config.inner());
     write_json_file(&path, &registry, "registry")
+}
+
+/// Exports local settings and registry metadata to a user-selected JSON file.
+#[tauri::command]
+pub fn export_local_snapshot(
+    config: State<'_, AppConfig>,
+    export_path: String,
+    settings: Value,
+    registry: Value,
+) -> Result<Value, String> {
+    validate_snapshot_payload(&settings, &registry)?;
+    let path = PathBuf::from(export_path);
+    let exported_at = timestamp_now();
+    let snapshot = serde_json::json!({
+        "schemaVersion": LOCAL_SNAPSHOT_SCHEMA_VERSION,
+        "exportedAt": exported_at,
+        "app": {
+            "name": config.app_name.clone(),
+            "version": config.version.clone(),
+            "platform": config.platform.clone(),
+        },
+        "data": {
+            "settings": settings,
+            "registry": registry,
+        },
+        "notes": [
+            "Local package registry paths are metadata only; package asset folders are not copied into this snapshot.",
+            "Windows GUI parity is not implied by this source-level import/export feature."
+        ]
+    });
+    write_json_file(&path, &snapshot, "local snapshot")?;
+    Ok(serde_json::json!({
+        "schemaVersion": LOCAL_SNAPSHOT_SCHEMA_VERSION,
+        "exportPath": path.to_string_lossy().to_string(),
+        "exportedAt": exported_at,
+    }))
+}
+
+/// Imports a local snapshot JSON file and replaces local settings/registry files.
+#[tauri::command]
+pub fn import_local_snapshot(
+    config: State<'_, AppConfig>,
+    import_path: String,
+) -> Result<Value, String> {
+    let path = PathBuf::from(import_path);
+    let snapshot = read_json_file(&path, "local snapshot")?;
+    let (settings, registry) = parse_local_snapshot(&snapshot)?;
+    write_json_file(&settings_path(config.inner()), &settings, "settings")?;
+    write_json_file(&registry_path(config.inner()), &registry, "registry")?;
+    Ok(serde_json::json!({
+        "settings": settings,
+        "registry": registry,
+        "importedAt": timestamp_now(),
+    }))
 }
 
 /// Imports a local package directory and registers it in the local registry.
@@ -301,6 +357,53 @@ fn collect_missing_assets(asset_root: &Path, nest_layout: &Value) -> Result<Vec<
         })
 }
 
+fn parse_local_snapshot(snapshot: &Value) -> Result<(Value, Value), String> {
+    let object = snapshot
+        .as_object()
+        .ok_or_else(|| "Local snapshot must be an object".to_string())?;
+    match object.get("schemaVersion").and_then(Value::as_u64) {
+        Some(LOCAL_SNAPSHOT_SCHEMA_VERSION) => {}
+        Some(version) => {
+            return Err(format!(
+                "Unsupported local snapshot schemaVersion {}",
+                version
+            ))
+        }
+        None => return Err("Local snapshot requires schemaVersion".to_string()),
+    }
+    let data = object
+        .get("data")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "Local snapshot requires data object".to_string())?;
+    let settings = data
+        .get("settings")
+        .cloned()
+        .ok_or_else(|| "Local snapshot requires data.settings".to_string())?;
+    let registry = data
+        .get("registry")
+        .cloned()
+        .ok_or_else(|| "Local snapshot requires data.registry".to_string())?;
+    validate_snapshot_payload(&settings, &registry)?;
+    Ok((settings, registry))
+}
+
+fn validate_snapshot_payload(settings: &Value, registry: &Value) -> Result<(), String> {
+    if !settings.is_object() {
+        return Err("Local snapshot settings must be an object".to_string());
+    }
+    let registry_object = registry
+        .as_object()
+        .ok_or_else(|| "Local snapshot registry must be an object".to_string())?;
+    if !registry_object
+        .get("packages")
+        .map(Value::is_array)
+        .unwrap_or(false)
+    {
+        return Err("Local snapshot registry requires packages array".to_string());
+    }
+    Ok(())
+}
+
 fn safe_join(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     if relative.is_empty() || path.is_absolute() {
@@ -462,5 +565,45 @@ mod tests {
         });
 
         assert!(validate_nest_layout(&valid).is_ok());
+    }
+
+    #[test]
+    fn parses_valid_local_snapshot() {
+        let snapshot = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 3, "activeNestId": null },
+                "registry": { "schemaVersion": 1, "packages": [] }
+            }
+        });
+
+        let (settings, registry) = parse_local_snapshot(&snapshot).unwrap();
+        assert_eq!(
+            settings.get("schemaVersion").and_then(Value::as_u64),
+            Some(3)
+        );
+        assert_eq!(
+            registry
+                .get("packages")
+                .and_then(Value::as_array)
+                .unwrap()
+                .len(),
+            0
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_local_snapshot_shape() {
+        let missing_data = serde_json::json!({ "schemaVersion": 1 });
+        let missing_packages = serde_json::json!({
+            "schemaVersion": 1,
+            "data": {
+                "settings": { "schemaVersion": 3 },
+                "registry": { "schemaVersion": 1 }
+            }
+        });
+
+        assert!(parse_local_snapshot(&missing_data).is_err());
+        assert!(parse_local_snapshot(&missing_packages).is_err());
     }
 }

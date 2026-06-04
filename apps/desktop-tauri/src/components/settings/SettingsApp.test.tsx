@@ -256,6 +256,44 @@ describe('SettingsApp', () => {
     });
   });
 
+  it('should export local settings and registry snapshot', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false, isSaving: false, error: null });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+
+    render(<SettingsApp />);
+    fireEvent.change(screen.getByLabelText('Local snapshot export path'), {
+      target: { value: '/tmp/codexpet-nest-snapshot.json' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Export Snapshot' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/Exported local snapshot/);
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('export_local_snapshot', {
+      exportPath: '/tmp/codexpet-nest-snapshot.json',
+      settings: expect.objectContaining({ schemaVersion: 3 }),
+      registry: expect.objectContaining({ schemaVersion: 1 }),
+    });
+  });
+
+  it('should import local snapshot and reload local stores', async () => {
+    useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);
+    useRegistryStore.setState({ registry, isLoading: false, isSaving: false, error: null });
+    useSettingsStore.setState({ settings: createDefaultSettings(), isLoading: false });
+
+    render(<SettingsApp />);
+    fireEvent.change(screen.getByLabelText('Local snapshot import path'), {
+      target: { value: '/tmp/codexpet-nest-snapshot.json' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Import Snapshot' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/Imported local snapshot/);
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('import_local_snapshot', {
+      importPath: '/tmp/codexpet-nest-snapshot.json',
+    });
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('load_local_settings');
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('load_local_registry');
+  });
+
   it('should not save click-through when native command fails', async () => {
     const previous = createDefaultSettings();
     useAppConfigStore.getState().setConfig(FALLBACK_CONFIG);

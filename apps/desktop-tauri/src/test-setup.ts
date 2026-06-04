@@ -114,6 +114,18 @@ beforeEach(async () => {
         return Promise.resolve(undefined);
       case 'import_local_package':
         return Promise.resolve(fallbackRegistry);
+      case 'export_local_snapshot':
+        return Promise.resolve({
+          schemaVersion: 1,
+          exportPath: '/tmp/codexpet-nest-snapshot.json',
+          exportedAt: 'unix:0',
+        });
+      case 'import_local_snapshot':
+        return Promise.resolve({
+          settings: fallbackSettings,
+          registry: fallbackRegistry,
+          importedAt: 'unix:0',
+        });
       case 'load_local_nest_package':
         return Promise.resolve({ nestLayout: {}, missingAssets: [] });
       case 'get_codex_state':
