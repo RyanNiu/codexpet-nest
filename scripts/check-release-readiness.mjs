@@ -37,6 +37,9 @@ const windowSource = readText('apps/desktop-tauri/src-tauri/src/windows/setup.rs
 const platformMacosSource = readText('apps/desktop-tauri/src-tauri/src/platform/macos.rs');
 const actionsSource = readText('apps/desktop-tauri/src-tauri/src/commands/actions.rs');
 const defaultCapability = readText('apps/desktop-tauri/src-tauri/capabilities/default.json');
+const windowsBuildWorkflowPath = '.github/workflows/windows-build.yml';
+const windowsBuildWorkflowExists = existsSync(join(root, windowsBuildWorkflowPath));
+const windowsBuildWorkflow = windowsBuildWorkflowExists ? readText(windowsBuildWorkflowPath) : '';
 
 check('product name', tauriConfig.productName === 'CodexPet Nest', tauriConfig.productName);
 check('bundle identifier', tauriConfig.identifier === 'xyz.codexpet.nest', tauriConfig.identifier);
@@ -70,6 +73,10 @@ check(
 );
 check('action capabilities keep shell disabled', actionsSource.includes('shell_execution_enabled: false'), 'commands/actions.rs');
 check('Tauri shell capability absent', !defaultCapability.includes('shell:'), 'capabilities/default.json');
+check('Windows CI workflow exists', windowsBuildWorkflowExists, windowsBuildWorkflowPath);
+check('Windows CI source targets windows runner', windowsBuildWorkflow.includes('windows-latest'), windowsBuildWorkflowPath);
+check('Windows CI source runs Tauri build', windowsBuildWorkflow.includes('pnpm tauri build'), windowsBuildWorkflowPath);
+check('Windows CI source uploads artifacts', windowsBuildWorkflow.includes('actions/upload-artifact') && windowsBuildWorkflow.includes('codexpet-nest-windows-bundle'), windowsBuildWorkflowPath);
 
 for (const result of checks) {
   const prefix = result.ok ? 'PASS' : 'FAIL';

@@ -1,0 +1,70 @@
+name: Windows CI Build Spike
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Set up Windows bundle dependencies
+        shell: pwsh
+        run: choco install nsis wixtoolset -y --no-progress
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Rust format check
+        run: cargo fmt --all --check
+        working-directory: apps/desktop-tauri/src-tauri
+
+      - name: Rust clippy
+        run: cargo clippy --all-targets -- -D warnings
+        working-directory: apps/desktop-tauri/src-tauri
+
+      - name: Rust test
+        run: cargo test
+        working-directory: apps/desktop-tauri/src-tauri
+
+      - name: Tauri build
+        run: pnpm tauri build
+
+      - name: Upload Windows bundle artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codexpet-nest-windows-bundle
+          path: apps/desktop-tauri/src-tauri/target/release/bundle/**
+          if-no-files-found: error
