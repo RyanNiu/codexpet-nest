@@ -62,13 +62,34 @@ Workflow commands:
 
 ## Windows CI Run Result
 
-Status: CI run not executed.
+Status: CI dispatch blocked before execution.
 
-Windows CI workflow added.
+Windows CI workflow exists in this local checkout, but it is not present on the GitHub default branch of the candidate remote repository inspected from this environment.
 
-Needs CI execution.
+Candidate GitHub repository inspected: `RyanNiu/codexpet-nest`.
 
-No GitHub Actions workflow was triggered from this environment during this pass. Therefore Windows CI is not marked CI build verified yet.
+Remote workflow files on `main`:
+
+- `release.yml`
+
+Attempted dispatch command:
+
+```sh
+gh workflow run windows-build.yml -R RyanNiu/codexpet-nest --ref main
+```
+
+Observed result:
+
+```text
+HTTP 404: workflow windows-build.yml not found on the default branch (https://api.github.com/repos/RyanNiu/codexpet-nest/actions/workflows/windows-build.yml)
+```
+
+No GitHub Actions Windows run URL exists yet. Therefore Windows CI is not marked CI build verified.
+
+Required unblocker before CI execution:
+
+- Publish `.github/workflows/windows-build.yml` to the target GitHub repository default branch or provide the correct `owner/repo` that already contains it.
+- Then trigger `workflow_dispatch` and record the real run URL.
 
 Required next CI evidence:
 
@@ -88,7 +109,9 @@ Artifact configuration:
 - Upload condition: after successful `pnpm tauri:build`
 - Missing files behavior: `if-no-files-found: error`
 
-Actual artifact upload: CI run not executed.
+Actual artifact upload: CI dispatch blocked before execution.
+
+Actual artifact files and paths: none yet, because no Windows run has executed.
 
 Artifact upload success would only prove that Windows bundle files were produced and uploaded by CI. It would not prove that the Windows GUI launches, tray works, overlay renders correctly, transparency works, or click-through works.
 
@@ -150,6 +173,7 @@ Status: Blocked.
 - Windows multi-monitor and mixed-DPI evidence.
 - Real Windows installer launch/install/uninstall validation.
 - Windows artifact path confirmation until GitHub Actions runs.
+- Windows CI dispatch until `.github/workflows/windows-build.yml` exists on the target GitHub repository default branch.
 
 Status: Not supported yet.
 
@@ -171,12 +195,13 @@ Phase 13 should not claim Windows parity completed, tray parity, overlay transpa
 
 ## Follow-Up Instructions for Future Windows Real-Device Validation
 
-1. Trigger `.github/workflows/windows-build.yml` on GitHub Actions and record the workflow run URL.
-2. Record pass/fail for each CI step and the final status as CI build verified or CI failed.
-3. If CI passes, download `codexpet-nest-windows-bundle` and record exact artifact files and paths.
-4. Install or launch the Windows artifact on a Windows 11 machine.
-5. Validate settings window open/reopen, tray visibility, Show Overlay, Hide Overlay, Open Settings, and Quit.
-6. Validate overlay visibility, transparency, always-on-top, skip-taskbar, release debug-boundary absence, drag, quick actions, and standalone restore.
-7. Confirm click-through remains Not supported yet and that the app surfaces the explicit unsupported state rather than pretending success.
-8. Install Codex Desktop on Windows and capture redacted state path/schema evidence before enabling or claiming `follow-codex` support.
-9. Capture monitor data for 100%, 125% or 150%, and mixed-DPI multi-monitor setups before changing coordinate assumptions.
+1. Publish `.github/workflows/windows-build.yml` to the target GitHub repository default branch, or confirm the correct `owner/repo` where it already exists.
+2. Trigger `.github/workflows/windows-build.yml` on GitHub Actions and record the workflow run URL.
+3. Record pass/fail for each CI step and the final status as CI build verified or CI failed.
+4. If CI passes, download `codexpet-nest-windows-bundle` and record exact artifact files and paths.
+5. Install or launch the Windows artifact on a Windows 11 machine.
+6. Validate settings window open/reopen, tray visibility, Show Overlay, Hide Overlay, Open Settings, and Quit.
+7. Validate overlay visibility, transparency, always-on-top, skip-taskbar, release debug-boundary absence, drag, quick actions, and standalone restore.
+8. Confirm click-through remains Not supported yet and that the app surfaces the explicit unsupported state rather than pretending success.
+9. Install Codex Desktop on Windows and capture redacted state path/schema evidence before enabling or claiming `follow-codex` support.
+10. Capture monitor data for 100%, 125% or 150%, and mixed-DPI multi-monitor setups before changing coordinate assumptions.
