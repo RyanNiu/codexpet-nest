@@ -59,7 +59,7 @@ jobs:
         working-directory: apps/desktop-tauri/src-tauri
 
       - name: Tauri build
-        run: pnpm tauri build
+        run: pnpm tauri:build
 
       - name: Upload Windows bundle artifacts
         if: success()

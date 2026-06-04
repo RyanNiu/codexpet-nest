@@ -58,7 +58,7 @@ Workflow commands:
 - `cargo fmt --all --check` in `apps/desktop-tauri/src-tauri`
 - `cargo clippy --all-targets -- -D warnings` in `apps/desktop-tauri/src-tauri`
 - `cargo test` in `apps/desktop-tauri/src-tauri`
-- `pnpm tauri build`
+- `pnpm tauri:build`
 
 ## Windows CI Run Result
 
@@ -85,7 +85,7 @@ Artifact configuration:
 
 - Artifact name: `codexpet-nest-windows-bundle`
 - Artifact path: `apps/desktop-tauri/src-tauri/target/release/bundle/**`
-- Upload condition: after successful `pnpm tauri build`
+- Upload condition: after successful `pnpm tauri:build`
 - Missing files behavior: `if-no-files-found: error`
 
 Actual artifact upload: CI run not executed.
@@ -96,7 +96,7 @@ Artifact upload success would only prove that Windows bundle files were produced
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `pnpm qa:release-smoke` | Passed on macOS | 31 release/source checks passed, including Windows CI source readiness, Windows click-through explicit unsupported, shell-disabled, and shell capability absence checks. |
+| `pnpm qa:release-smoke` | Passed on macOS | 32 release/source checks passed, including Windows CI source readiness, usable Windows Tauri build command, Windows click-through explicit unsupported, shell-disabled, and shell capability absence checks. |
 | `pnpm typecheck` | Passed on macOS | Workspace TypeScript checks passed for core, renderer, and desktop. |
 | `pnpm lint` | Passed on macOS | ESLint passed for core, renderer, and desktop. |
 | `pnpm format:check` | Passed on macOS | All matched app/package TS/TSX/CSS/JSON files use Prettier style. |
@@ -111,7 +111,7 @@ Artifact upload success would only prove that Windows bundle files were produced
 - `.github/workflows/windows-build.yml` exists.
 - The workflow targets `windows-latest`.
 - The workflow installs Node >= 20, pnpm 10.x, Rust stable, and Windows bundle tooling.
-- The workflow includes TypeScript typecheck, lint, tests, Rust format check, Rust clippy with warnings denied, Rust tests, and `pnpm tauri build`.
+- The workflow includes TypeScript typecheck, lint, tests, Rust format check, Rust clippy with warnings denied, Rust tests, and `pnpm tauri:build`.
 - The workflow is configured to upload `apps/desktop-tauri/src-tauri/target/release/bundle/**` as `codexpet-nest-windows-bundle` after a successful build.
 - `pnpm qa:release-smoke` includes a source-level CI readiness check for the Windows workflow.
 - Windows click-through remains explicit unsupported in source.

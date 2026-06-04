@@ -75,7 +75,13 @@ check('action capabilities keep shell disabled', actionsSource.includes('shell_e
 check('Tauri shell capability absent', !defaultCapability.includes('shell:'), 'capabilities/default.json');
 check('Windows CI workflow exists', windowsBuildWorkflowExists, windowsBuildWorkflowPath);
 check('Windows CI source targets windows runner', windowsBuildWorkflow.includes('windows-latest'), windowsBuildWorkflowPath);
-check('Windows CI source runs Tauri build', windowsBuildWorkflow.includes('pnpm tauri build'), windowsBuildWorkflowPath);
+check(
+  'Windows CI source runs usable Tauri build command',
+  windowsBuildWorkflow.includes('pnpm tauri:build') ||
+    windowsBuildWorkflow.includes('pnpm --filter @codexpet/desktop-tauri tauri build'),
+  windowsBuildWorkflowPath,
+);
+check('Windows CI source does not use unavailable root tauri binary', !windowsBuildWorkflow.includes('pnpm tauri build'), windowsBuildWorkflowPath);
 check('Windows CI source uploads artifacts', windowsBuildWorkflow.includes('actions/upload-artifact') && windowsBuildWorkflow.includes('codexpet-nest-windows-bundle'), windowsBuildWorkflowPath);
 
 for (const result of checks) {
