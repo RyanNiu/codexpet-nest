@@ -30,7 +30,7 @@ Not included:
 | --- | --- |
 | Host OS | macOS / Darwin 25.3.0 arm64 |
 | Windows real machine available | No |
-| GitHub Actions Windows run result | CI run not executed |
+| GitHub Actions Windows run result | Windows CI passed and produced bundle artifacts; GUI validation remains pending |
 | Node | v22.16.0 |
 | pnpm | 10.15.1 |
 | Rust | rustc 1.96.0 (ac68faa20 2026-05-25) |
@@ -121,19 +121,17 @@ The snapshot contains current normalized settings and local registry metadata. I
 | `cd apps/desktop-tauri/src-tauri && cargo test` | Passed | 34 lib tests, 0 main tests, 3 config integration tests, and 0 doc tests passed. |
 | `pnpm tauri:build:app` | Passed on macOS | Produced `/Users/ryanniu/Documents/Project/codexpet-nest-next/apps/desktop-tauri/src-tauri/target/release/bundle/macos/CodexPet Nest.app`. This is not Windows artifact verification. |
 
-Full local macOS validation passed. Windows CI and Windows GUI validation remain separate pending work.
+Full local macOS validation passed. Windows CI has passed and produced Windows bundle artifacts, but Windows GUI validation remains separate pending work.
 
 ## Windows Status
 
-Windows status remains unchanged from Phase 12A:
+Windows status after the Phase 12A CI evidence update:
 
-- CI/source readiness only.
-- CI run not executed.
-- Needs CI execution.
+- Windows CI has passed on GitHub Actions and produced bundle artifacts.
 - Needs GUI verification.
 - Windows support still experimental.
 - Windows click-through is Not supported yet.
-- Windows `follow-codex` parity is Not supported yet.
+- Windows `follow-codex` parity is Not supported yet and remains unverified.
 
 This phase does not provide Windows GUI evidence and must not be used to claim Windows parity completed.
 
@@ -143,4 +141,4 @@ This phase does not provide Windows GUI evidence and must not be used to claim W
 - Decide whether future snapshots should optionally bundle local package assets.
 - Define cloud sync and conflict resolution separately from local snapshot import/export.
 - Run the final full local validation set before release readiness claims.
-- Run Windows CI and real Windows GUI validation in a future Windows-specific phase before any Windows parity claim.
+- Run real Windows GUI validation in a future Windows-specific phase before any Windows parity claim.

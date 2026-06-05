@@ -62,41 +62,65 @@ Workflow commands:
 
 ## Windows CI Run Result
 
-Status: CI dispatch blocked before execution.
+Status: CI build verified on GitHub Actions Windows runner.
 
-Windows CI workflow exists in this local checkout, but it is not present on the GitHub default branch of the candidate remote repository inspected from this environment.
+Target GitHub repository: `RyanNiu/codexpet-nest`.
 
-Candidate GitHub repository inspected: `RyanNiu/codexpet-nest`.
+Default branch: `main`.
 
-Remote workflow files on `main`:
+Merge evidence:
 
-- `release.yml`
+- PR: `https://github.com/RyanNiu/codexpet-nest/pull/4`
+- Merge commit: `6827dd276c3d5489f19c7642216b9deddde00bc2`
+- Remote workflows on `main` after merge: `Phase 0 CI`, `Windows CI Build Spike`
 
-Attempted dispatch command:
+Manual dispatch command:
 
 ```sh
 gh workflow run windows-build.yml -R RyanNiu/codexpet-nest --ref main
 ```
 
-Observed result:
+Primary Windows CI evidence:
 
-```text
-HTTP 404: workflow windows-build.yml not found on the default branch (https://api.github.com/repos/RyanNiu/codexpet-nest/actions/workflows/windows-build.yml)
-```
+- Run URL: `https://github.com/RyanNiu/codexpet-nest/actions/runs/26967785630`
+- Job URL: `https://github.com/RyanNiu/codexpet-nest/actions/runs/26967785630/job/79574895798`
+- Event: `workflow_dispatch`
+- Branch: `main`
+- Head SHA: `6827dd276c3d5489f19c7642216b9deddde00bc2`
+- Workflow: `Windows CI Build Spike`
+- Job: `windows-build`
+- Result: success
+- Started: `2026-06-04T17:18:45Z`
+- Completed: `2026-06-04T17:30:51Z`
 
-No GitHub Actions Windows run URL exists yet. Therefore Windows CI is not marked CI build verified.
+Step results from the `workflow_dispatch` run:
 
-Required unblocker before CI execution:
+- `Set up job`: success
+- `Checkout repository`: success
+- `Set up Node.js`: success
+- `Set up pnpm`: success
+- `Set up Rust stable`: success
+- `Set up Windows bundle dependencies`: success
+- `Install frontend dependencies`: success
+- `Typecheck`: success
+- `Lint`: success
+- `Test`: success
+- `Rust format check`: success
+- `Rust clippy`: success
+- `Rust test`: success
+- `Tauri build`: success
+- `Upload Windows bundle artifacts`: success
 
-- Publish `.github/workflows/windows-build.yml` to the target GitHub repository default branch or provide the correct `owner/repo` that already contains it.
-- Then trigger `workflow_dispatch` and record the real run URL.
+Supplemental Windows CI evidence:
 
-Required next CI evidence:
+- PR Windows CI run after blocker fixes: `https://github.com/RyanNiu/codexpet-nest/actions/runs/26967021872` succeeded.
+- PR Phase 0 CI run after blocker fixes: `https://github.com/RyanNiu/codexpet-nest/actions/runs/26967021874` succeeded.
+- Earlier PR Windows CI run `https://github.com/RyanNiu/codexpet-nest/actions/runs/26965242218` failed at `Rust clippy` due to `clippy::empty-line-after-doc-comments` in `apps/desktop-tauri/src-tauri/src/platform/windows.rs`; fixed by converting the file-level Windows notes from doc comments to ordinary comments.
+- Earlier PR Phase 0 CI runs failed due to missing Linux Tauri system dependencies and an unused test variable; fixed by adding Linux Tauri dependency installation to `.github/workflows/phase0-ci.yml` and asserting `data_dir` is non-empty in `apps/desktop-tauri/src-tauri/tests/config_tests.rs`.
 
-- Workflow run URL.
-- Pass/fail result for every workflow step.
-- Any build failure summary and fix notes.
-- Final status updated to either CI build verified or CI failed.
+This verifies that the Windows CI build pipeline runs and produces bundle artifacts on GitHub Actions. It does not verify Windows GUI launch or runtime behavior.
+
+Final CI status: CI build verified. GUI remains not verified.
 
 ## Artifact Upload Status
 
@@ -109,9 +133,17 @@ Artifact configuration:
 - Upload condition: after successful `pnpm tauri:build`
 - Missing files behavior: `if-no-files-found: error`
 
-Actual artifact upload: CI dispatch blocked before execution.
+Actual artifact upload: passed on `main` workflow dispatch.
 
-Actual artifact files and paths: none yet, because no Windows run has executed.
+Artifact evidence:
+
+- Artifact name: `codexpet-nest-windows-bundle`
+- Artifact size: `3010334` bytes
+- Artifact expired: `false`
+- Artifact API archive URL: `https://api.github.com/repos/RyanNiu/codexpet-nest/actions/artifacts/7418515778/zip`
+- Downloaded inspection directory: `/var/folders/p4/d_0f09d52xz1ttr2s96030h00000gn/T/opencode/codexpet-windows-artifact-26967785630`
+- Downloaded artifact file: `/var/folders/p4/d_0f09d52xz1ttr2s96030h00000gn/T/opencode/codexpet-windows-artifact-26967785630/nsis/CodexPet Nest_0.1.12_x64-setup.exe`
+- Downloaded artifact file: `/var/folders/p4/d_0f09d52xz1ttr2s96030h00000gn/T/opencode/codexpet-windows-artifact-26967785630/msi/CodexPet Nest_0.1.12_x64_en-US.msi`
 
 Artifact upload success would only prove that Windows bundle files were produced and uploaded by CI. It would not prove that the Windows GUI launches, tray works, overlay renders correctly, transparency works, or click-through works.
 
@@ -119,7 +151,7 @@ Artifact upload success would only prove that Windows bundle files were produced
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `pnpm qa:release-smoke` | Passed on macOS | 32 release/source checks passed, including Windows CI source readiness, usable Windows Tauri build command, Windows click-through explicit unsupported, shell-disabled, and shell capability absence checks. |
+| `pnpm qa:release-smoke` | Passed on macOS | 36 release/source checks passed, including Windows CI source readiness, usable Windows Tauri build command, Windows click-through explicit unsupported, shell-disabled, and shell capability absence checks. |
 | `pnpm typecheck` | Passed on macOS | Workspace TypeScript checks passed for core, renderer, and desktop. |
 | `pnpm lint` | Passed on macOS | ESLint passed for core, renderer, and desktop. |
 | `pnpm format:check` | Passed on macOS | All matched app/package TS/TSX/CSS/JSON files use Prettier style. |
@@ -140,7 +172,7 @@ Artifact upload success would only prove that Windows bundle files were produced
 - Windows click-through remains explicit unsupported in source.
 - Shell capability remains absent and shell execution remains disabled in source.
 
-These are source-level checks. They do not prove a Windows build has passed until a real Windows CI run succeeds.
+These source-level checks are now supplemented by the successful GitHub Actions Windows run documented above; GUI/runtime behavior remains unverified.
 
 ## What Remains GUI Not Verified
 
@@ -172,8 +204,7 @@ Status: Blocked.
 - Windows coordinate unit evidence for Codex bounds.
 - Windows multi-monitor and mixed-DPI evidence.
 - Real Windows installer launch/install/uninstall validation.
-- Windows artifact path confirmation until GitHub Actions runs.
-- Windows CI dispatch until `.github/workflows/windows-build.yml` exists on the target GitHub repository default branch.
+- Windows artifact install/launch validation on a real Windows machine.
 
 Status: Not supported yet.
 
@@ -187,7 +218,7 @@ Phase 13 can proceed only if its scope does not require Windows GUI evidence or 
 Allowed wording for Phase 13 planning:
 
 - Windows support is experimental.
-- Windows CI build status is pending until a Windows workflow run succeeds.
+- Windows CI build has passed on GitHub Actions and produced Windows bundle artifacts.
 - Windows GUI needs verification.
 - Windows click-through is not supported yet.
 
@@ -195,13 +226,11 @@ Phase 13 should not claim Windows parity completed, tray parity, overlay transpa
 
 ## Follow-Up Instructions for Future Windows Real-Device Validation
 
-1. Publish `.github/workflows/windows-build.yml` to the target GitHub repository default branch, or confirm the correct `owner/repo` where it already exists.
-2. Trigger `.github/workflows/windows-build.yml` on GitHub Actions and record the workflow run URL.
-3. Record pass/fail for each CI step and the final status as CI build verified or CI failed.
-4. If CI passes, download `codexpet-nest-windows-bundle` and record exact artifact files and paths.
-5. Install or launch the Windows artifact on a Windows 11 machine.
-6. Validate settings window open/reopen, tray visibility, Show Overlay, Hide Overlay, Open Settings, and Quit.
-7. Validate overlay visibility, transparency, always-on-top, skip-taskbar, release debug-boundary absence, drag, quick actions, and standalone restore.
-8. Confirm click-through remains Not supported yet and that the app surfaces the explicit unsupported state rather than pretending success.
-9. Install Codex Desktop on Windows and capture redacted state path/schema evidence before enabling or claiming `follow-codex` support.
-10. Capture monitor data for 100%, 125% or 150%, and mixed-DPI multi-monitor setups before changing coordinate assumptions.
+1. Download `codexpet-nest-windows-bundle` from the successful Windows CI run or trigger a fresh `.github/workflows/windows-build.yml` run on `main` if a newer artifact is needed.
+2. Record exact artifact files and paths before Windows installation.
+3. Install or launch the Windows artifact on a Windows 11 machine.
+4. Validate settings window open/reopen, tray visibility, Show Overlay, Hide Overlay, Open Settings, and Quit.
+5. Validate overlay visibility, transparency, always-on-top, skip-taskbar, release debug-boundary absence, drag, quick actions, and standalone restore.
+6. Confirm click-through remains Not supported yet and that the app surfaces the explicit unsupported state rather than pretending success.
+7. Install Codex Desktop on Windows and capture redacted state path/schema evidence before enabling or claiming `follow-codex` support.
+8. Capture monitor data for 100%, 125% or 150%, and mixed-DPI multi-monitor setups before changing coordinate assumptions.
