@@ -42,6 +42,9 @@ const defaultCapability = readText('apps/desktop-tauri/src-tauri/capabilities/de
 const windowsBuildWorkflowPath = '.github/workflows/windows-build.yml';
 const windowsBuildWorkflowExists = existsSync(join(root, windowsBuildWorkflowPath));
 const windowsBuildWorkflow = windowsBuildWorkflowExists ? readText(windowsBuildWorkflowPath) : '';
+const macosReleaseWorkflowPath = '.github/workflows/macos-release.yml';
+const macosReleaseWorkflowExists = existsSync(join(root, macosReleaseWorkflowPath));
+const macosReleaseWorkflow = macosReleaseWorkflowExists ? readText(macosReleaseWorkflowPath) : '';
 
 check('product name', tauriConfig.productName === 'CodexPet Nest', tauriConfig.productName);
 check('bundle identifier', tauriConfig.identifier === 'xyz.codexpet.nest', tauriConfig.identifier);
@@ -89,6 +92,50 @@ check(
 );
 check('Windows CI source does not use unavailable root tauri binary', !windowsBuildWorkflow.includes('pnpm tauri build'), windowsBuildWorkflowPath);
 check('Windows CI source uploads artifacts', windowsBuildWorkflow.includes('actions/upload-artifact') && windowsBuildWorkflow.includes('codexpet-nest-windows-bundle'), windowsBuildWorkflowPath);
+check('macOS release workflow exists', macosReleaseWorkflowExists, macosReleaseWorkflowPath);
+check(
+  'macOS release is tag-triggered',
+  macosReleaseWorkflow.includes("tags: ['v*']") || macosReleaseWorkflow.includes("- 'v*'"),
+  macosReleaseWorkflowPath,
+);
+check(
+  'macOS release requires Apple signing and notarization secrets',
+  [
+    'APPLE_CERTIFICATE',
+    'APPLE_CERTIFICATE_PASSWORD',
+    'KEYCHAIN_PASSWORD',
+    'APPLE_ID',
+    'APPLE_PASSWORD',
+    'APPLE_TEAM_ID',
+  ].every((secret) => macosReleaseWorkflow.includes(`secrets.${secret}`)),
+  macosReleaseWorkflowPath,
+);
+check(
+  'macOS release imports a Developer ID certificate',
+  macosReleaseWorkflow.includes('security import') &&
+    macosReleaseWorkflow.includes('Developer ID Application') &&
+    macosReleaseWorkflow.includes('APPLE_SIGNING_IDENTITY'),
+  macosReleaseWorkflowPath,
+);
+check(
+  'macOS release builds app and DMG bundles',
+  macosReleaseWorkflow.includes('pnpm tauri build --bundles app,dmg'),
+  macosReleaseWorkflowPath,
+);
+check(
+  'macOS release verifies Gatekeeper and notarization',
+  macosReleaseWorkflow.includes('codesign --verify') &&
+    macosReleaseWorkflow.includes('spctl --assess') &&
+    macosReleaseWorkflow.includes('stapler validate'),
+  macosReleaseWorkflowPath,
+);
+check(
+  'macOS release verifies artifacts before upload',
+  macosReleaseWorkflow.indexOf('Verify signed and notarized artifacts') > -1 &&
+    macosReleaseWorkflow.indexOf('softprops/action-gh-release') >
+      macosReleaseWorkflow.indexOf('Verify signed and notarized artifacts'),
+  macosReleaseWorkflowPath,
+);
 
 for (const result of checks) {
   const prefix = result.ok ? 'PASS' : 'FAIL';
